@@ -1,0 +1,9 @@
+# 行星可视化桌面软件 依赖清单
+# 安装：pip install -r requirements.txt
+PyQt5>=5.15.9
+numpy>=1.24.0
+pandas>=1.5.0
+matplotlib>=3.6.0
+
+# 打包 exe 时需要（可选，仅构建阶段使用）：
+# pyinstaller>=6.0.0
