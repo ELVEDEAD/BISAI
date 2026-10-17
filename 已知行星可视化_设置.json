@@ -1,4 +1,14 @@
 {
   "language": "zh",
-  "theme": "night"
+  "theme": "night",
+  "font_scale": 1.0,
+  "perf_tier": "high",
+  "planet_count_mode": "auto",
+  "planet_count": 400000,
+  "gpu_pref": "auto",
+  "display_mode": "maximized",
+  "llm_provider": "deepseek",
+  "llm_base_url": "https://api.deepseek.com/v1",
+  "llm_model": "deepseek-chat",
+  "llm_api_key": ""
 }

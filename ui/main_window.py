@@ -18,6 +18,7 @@ main_window.py —— 主窗口组装（模块 G）
     Ctrl+F 搜索聚焦
 """
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QSplitter, QLineEdit, QPushButton, QCheckBox,
                              QLabel, QTabWidget, QDialog, QTextEdit,
@@ -25,21 +26,24 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
 
 from scene.viewport import Viewport
 from ui import style
+from ui import dark_titlebar
+from ui.resource import icon_path
 from core import i18n
 from core.i18n import tr
+from data.loader import BODY_TYPE_LABELS
 from ui.timeline import Timeline
 from ui.tree_panel import TreePanel
 from ui.detail_panel import DetailPanel
-from ui.compare_panel import ComparePanel
 from ui.distance_panel import DistancePanel
 from ui.phenomena_panel import PhenomenaPanel
-from ui.exo_obs_panel import ExoObsPanel
-from ui.sky_panel import SkyPanel
 from ui.surface_panel import SurfacePanel
+from ui.ai_panel import AIPanel
+from ui.lazy_tabs import LazyTabManager
 from ui.guide import GuideDialog, should_show_guide, mark_guide_completed
 from ui.teaching_scenes import TeachingSceneDialog
 from ui.settings_dialog import SettingsDialog
 from core.time_system import SimulationClock
+from core import app_settings
 
 
 class MainWindow(QMainWindow):
@@ -50,7 +54,8 @@ class MainWindow(QMainWindow):
         self.bodies = bodies
         self.stars = stars
         self._switch_cb = None      # 启动器注入：返回模式选择
-        self.setWindowTitle(tr("已知行星可视化 —— 太阳系 + 系外行星"))
+        self.setWindowTitle(tr("Astrarium —— 太阳系 + 系外行星"))
+        self.setWindowIcon(QIcon(icon_path()))
         self.resize(1400, 900)
 
         self._build_ui()
@@ -69,7 +74,7 @@ class MainWindow(QMainWindow):
 
     def retranslate(self):
         """按当前语言重建本窗口所有文字（即时生效）。"""
-        self.setWindowTitle(tr("已知行星可视化 —— 太阳系 + 系外行星"))
+        self.setWindowTitle(tr("Astrarium —— 太阳系 + 系外行星"))
         if getattr(self, "_lbl_search", None) is not None:
             self._lbl_search.setText(f"  {tr('搜索:')} ")
         self.search_box.setPlaceholderText(tr("搜索天体…"))
@@ -87,7 +92,7 @@ class MainWindow(QMainWindow):
         # 尾迹 / 密度 / 灵敏度下拉项
         self._retranslate_combo(
             self.cmb_trails, ["尾迹 · 自动清除", "尾迹 · 一直显示", "尾迹 · 关闭"])
-        self._retranslate_combo(self.cmb_belt, ["少", "中", "多"])
+        self._retranslate_combo(self.cmb_belt, ["省电", "均衡", "高性能"])
         self._retranslate_combo(self.cmb_sens, ["很慢", "慢", "标准", "快", "很快"])
         if getattr(self, "_lbl_sens", None) is not None:
             self._lbl_sens.setText(f"  {tr('灵敏度:')} ")
@@ -100,7 +105,8 @@ class MainWindow(QMainWindow):
             act.setText(tr(key))
         # 右侧标签页
         for i, key in enumerate(("详情", "对比分析", "测距", "天象推演",
-                                 "观测特征", "地面视角", "地表视角")):
+                                 "观测特征", "科研计算", "地面视角", "地表视角",
+                                 "天文助手")):
             if i < self.right_tabs.count():
                 self.right_tabs.setTabText(i, tr(key))
         # 子面板（若实现了 retranslate）
@@ -158,21 +164,29 @@ class MainWindow(QMainWindow):
         self.right_tabs = right_tabs
         self.detail_panel = DetailPanel(self.viewport)
         right_tabs.addTab(self.detail_panel, tr("详情"))
-        self.compare_panel = ComparePanel(self.viewport.clock, self.bodies)
-        right_tabs.addTab(self.compare_panel, tr("对比分析"))
-        self.detail_panel.compare_panel = self.compare_panel
+        # matplotlib 面板懒加载：首次切入标签页或代码访问时才构造，
+        # 主窗口打开不付 matplotlib 导入（约 1s）与 4 个面板的构建成本
+        self._lazy = LazyTabManager(right_tabs)
+        self._lazy.add_lazy_tab("compare", tr("对比分析"),
+                                lambda: self._new_mpl_panel("compare"),
+                                self._on_mpl_panel_created)
         self.distance_panel = DistancePanel(self.viewport, self.bodies)
         right_tabs.addTab(self.distance_panel, tr("测距"))
         self.phenomena_panel = PhenomenaPanel(self.viewport, self.bodies)
         right_tabs.addTab(self.phenomena_panel, tr("天象推演"))
-        self.exo_obs_panel = ExoObsPanel(self.viewport, self.bodies)
-        right_tabs.addTab(self.exo_obs_panel, tr("观测特征"))
-        self.sky_panel = SkyPanel(self.viewport, self.bodies, self.stars)
-        right_tabs.addTab(self.sky_panel, tr("地面视角"))
+        self._lazy.add_lazy_tab("exo_obs", tr("观测特征"),
+                                lambda: self._new_mpl_panel("exo_obs"),
+                                self._on_mpl_panel_created)
+        self._lazy.add_lazy_tab("sci", tr("科研计算"),
+                                lambda: self._new_mpl_panel("sci"),
+                                self._on_mpl_panel_created)
+        self._lazy.add_lazy_tab("sky", tr("地面视角"),
+                                lambda: self._new_mpl_panel("sky"),
+                                self._on_mpl_panel_created)
         self.surface_panel = SurfacePanel(self.viewport, self.bodies, self.stars)
         right_tabs.addTab(self.surface_panel, tr("地表视角"))
-        self.detail_panel.exo_obs_panel = self.exo_obs_panel
-        self.detail_panel.sky_panel = self.sky_panel
+        self.ai_panel = AIPanel()
+        right_tabs.addTab(self.ai_panel, tr("天文助手"))
         self.detail_panel.surface_panel = self.surface_panel
         self.detail_panel.right_tabs = right_tabs
         splitter.addWidget(right_tabs)
@@ -194,6 +208,15 @@ class MainWindow(QMainWindow):
         # 同步工具栏控件状态到视口（工具栏在视口之前构建，信号未触发）
         self._on_belt()
         self._on_sensitivity()
+
+        # 应用已保存的天体数量模式（自动适配 / 手动固定）
+        try:
+            if app_settings.get_planet_count_mode() == "auto":
+                self.viewport.set_planet_auto(True)
+            else:
+                self.viewport.set_planet_count(app_settings.get_planet_count(), auto=False)
+        except Exception:
+            pass
 
     def _build_toolbar(self):
         tb = QToolBar("主工具栏")
@@ -342,10 +365,18 @@ class MainWindow(QMainWindow):
         tb.addWidget(self.chk_belt)
 
         self.cmb_belt = QComboBox()
-        self.cmb_belt.setToolTip("小天体密度：预生成 10 万颗，此处只改绘制数量（各族群按比例保留）")
-        for _label, _val in (("少", 20000), ("中", 50000), ("多", 100000)):
-            self.cmb_belt.addItem(tr(_label), _val)
-        self.cmb_belt.setCurrentIndex(1)
+        self.cmb_belt.setToolTip(
+            "渲染性能档位（天体数量动态适配）\n"
+            "省电：上限 12 万颗；均衡：50 万颗；高性能：上限 100 万颗\n"
+            "开启「小天体」后按所选档位渲染天体点云，自动保持 30 FPS 以上")
+        _belt_opts = (("省电", "power"), ("均衡", "balanced"), ("高性能", "high"))
+        _saved_tier = app_settings.get_perf_tier()
+        _sel = 2
+        for _i, (_label, _key) in enumerate(_belt_opts):
+            self.cmb_belt.addItem(tr(_label), _key)
+            if _key == _saved_tier:
+                _sel = _i
+        self.cmb_belt.setCurrentIndex(_sel)
         self.cmb_belt.currentIndexChanged.connect(self._on_belt)
         tb.addWidget(self.cmb_belt)
 
@@ -416,14 +447,45 @@ class MainWindow(QMainWindow):
         self.phenomena_panel.jumpRequested.connect(self._on_phenomena_jump)
 
     def _start_timers(self):
-        # 时间轴日期刷新（500ms）
+        # 时间轴日期刷新（500ms）；sky_panel.tick 在面板懒创建后连接
         self._ui_timer = QTimer(self)
         self._ui_timer.timeout.connect(self.timeline.tick)
-        self._ui_timer.timeout.connect(self.sky_panel.tick)
         self._ui_timer.timeout.connect(self.surface_panel.tick)
         self._ui_timer.start(500)
 
+    # ---------- matplotlib 面板懒加载 ----------
+    def _new_mpl_panel(self, key):
+        """按需 import 并构造 matplotlib 面板（import 放函数内，避免启动即加载）"""
+        if key == "compare":
+            from ui.compare_panel import ComparePanel
+            return ComparePanel(self.viewport.clock, self.bodies)
+        if key == "exo_obs":
+            from ui.exo_obs_panel import ExoObsPanel
+            return ExoObsPanel(self.viewport, self.bodies)
+        if key == "sci":
+            from ui.sci_panel import SciPanel
+            return SciPanel()
+        if key == "sky":
+            from ui.sky_panel import SkyPanel
+            return SkyPanel(self.viewport, self.bodies, self.stars)
+        raise KeyError(key)
+
+    def _on_mpl_panel_created(self, key, panel):
+        """面板懒创建完成后的依赖注入 / 信号连接"""
+        if key == "compare":
+            self.detail_panel.compare_panel = panel
+        elif key == "exo_obs":
+            self.detail_panel.exo_obs_panel = panel
+            body = getattr(self.detail_panel, "_body", None)
+            if body is not None:
+                panel.set_body(body)
+        elif key == "sky":
+            self.detail_panel.sky_panel = panel
+            self._ui_timer.timeout.connect(panel.tick)
+        # sci 面板无外部依赖
+
     def showEvent(self, ev):
+        dark_titlebar.apply_dark_titlebar(self)
         if not self._ui_timer.isActive():
             self._ui_timer.start(500)
         super().showEvent(ev)
@@ -437,19 +499,54 @@ class MainWindow(QMainWindow):
         self.viewport.selected_name = body.name
         self.viewport.focus_body_by_name(body.name)
         self.detail_panel.show_body(body)
-        self.exo_obs_panel.set_body(body)
+        exo = self._lazy.get("exo_obs")
+        if exo is not None:
+            exo.set_body(body)
         self.viewport.update()
+        self._set_ai_context(body)
 
     def _on_system_click(self, group):
         """点击恒星系节点：详情面板显示恒星系概览（宿主恒星参数 + 成员行星）"""
         self.detail_panel.show_system(group)
 
+    def _set_ai_context(self, body):
+        """把当前选中天体告知「天文助手」，使回答更贴合画面。"""
+        if body is None or not getattr(self, "ai_panel", None):
+            return
+        try:
+            name = getattr(body, "name", "") or ""
+            btype = getattr(body, "body_type", "") or ""
+            kind = BODY_TYPE_LABELS.get(btype, btype)
+            parts = ["当前选中天体：%s（%s）" % (name, kind)] if kind else \
+                    ["当前选中天体：%s" % name]
+            host = getattr(body, "host", "")
+            if host:
+                parts.append("宿主：%s" % host)
+            if getattr(body, "a_au", None):
+                parts.append("轨道半长轴：%.3f AU" % body.a_au)
+            if getattr(body, "period_days", None):
+                parts.append("公转周期：%.2f 天" % body.period_days)
+            if getattr(body, "radius_km", None):
+                parts.append("半径：%.0f km" % body.radius_km)
+            if getattr(body, "mass_earth", None):
+                parts.append("质量：%.3f 地球质量" % body.mass_earth)
+            if getattr(body, "dist_pc", None):
+                parts.append("距离：%.2f pc" % body.dist_pc)
+            if getattr(body, "disc_year", None):
+                parts.append("发现年份：%d" % body.disc_year)
+            self.ai_panel.set_context("；".join(parts))
+        except Exception:
+            pass
+
     def _on_viewport_select(self, body):
         """主视口单击天体：选中 + 详情 + 树同步 + 把相机焦点切到该天体"""
         self.detail_panel.show_body(body)
         self.tree_panel.select_body(body.name)
-        self.exo_obs_panel.set_body(body)
+        exo = self._lazy.get("exo_obs")
+        if exo is not None:
+            exo.set_body(body)
         self.viewport.focus_body_by_name(body.name)
+        self._set_ai_context(body)
 
     def _on_compare_toggle(self, body):
         self.viewport.update()
@@ -457,7 +554,9 @@ class MainWindow(QMainWindow):
     def _on_date_jump(self, jd):
         self.viewport.invalidate_far()
         self.viewport.update()
-        self.sky_panel._sync_from_clock()
+        sky = self._lazy.get("sky")
+        if sky is not None:
+            sky._sync_from_clock()
         self.surface_panel._sync_from_clock()
 
     def _on_phenomena_jump(self, jd, focus_name):
@@ -571,9 +670,18 @@ class MainWindow(QMainWindow):
 
     def _on_belt(self):
         vp = getattr(self, "viewport", None)
-        val = self.cmb_belt.currentData()
-        if vp is not None and val is not None:
-            vp.set_belt(self.chk_belt.isChecked(), val)
+        if vp is None:
+            return
+        tier = self.cmb_belt.currentData()
+        if tier is None:
+            return
+        vp.set_belt(enabled=self.chk_belt.isChecked())
+        if hasattr(vp, "set_perf_tier"):
+            vp.set_perf_tier(tier)
+        try:
+            app_settings.set_perf_tier(tier)
+        except Exception:
+            pass
 
     def _show_help(self):
         dlg = QDialog(self)
@@ -583,7 +691,7 @@ class MainWindow(QMainWindow):
         text = QTextEdit()
         text.setReadOnly(True)
         text.setHtml("""
-<h2 style="color:#e87d0d;">已知行星可视化 —— 快捷键与操作指南</h2>
+<h2 style="color:#e87d0d;">Astrarium —— 快捷键与操作指南</h2>
 
 <h3>视角控制（Blender 式）</h3>
 <table>
@@ -728,7 +836,7 @@ class MainWindow(QMainWindow):
 
     def _show_teaching(self):
         dlg = TeachingSceneDialog(
-            self.viewport, self.compare_panel, self.timeline,
+            self.viewport, self._lazy.ensure("compare"), self.timeline,
             self.tree_panel, self.detail_panel, self)
         dlg.exec_()
 

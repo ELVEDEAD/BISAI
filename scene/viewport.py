@@ -30,6 +30,7 @@ from core.time_system import SimulationClock
 from core.constants import (AU_KM, J2000_JD, format_distance, scale_tier_name,
                             GRADE_DESCRIPTION, format_light_time)
 from core.kepler import exo_relative_positions_vec
+from core import render_settings
 from scene.textures import texture_kind
 from data.solar_system import EPHEMERIS_VALID_YEARS, RINGS, POLES, saturn_ring_alpha
 
@@ -518,6 +519,7 @@ class Viewport(QOpenGLWidget):
     compareToggled = pyqtSignal(object)    # 加入/退出对比
     focusChanged = pyqtSignal(str)         # 焦点变化
     followChanged = pyqtSignal(bool)       # 锁定跟随状态变化
+    planetCountChanged = pyqtSignal(int)   # 当前渲染天体数量变化（动态适配上报）
 
     def __init__(self, parent=None):
         fmt = QSurfaceFormat()
@@ -550,7 +552,11 @@ class Viewport(QOpenGLWidget):
         self.show_trails = True               # 历史尾迹（选中/对比天体）
         self.trail_mode = "clear"             # 尾迹模式：clear 自动清除（保留最近一段并渐隐）| persist 一直显示
         self.show_belt = True                 # 主带小行星点云
-        self.belt_count = 20000               # 实际绘制的小行星数量（密度档位）
+        self.belt_count = render_settings.initial_count("high")   # 实际绘制的小天体数量
+        # 渲染性能档位与天体数量动态适配（详见 core/render_settings.py）
+        #   高性能：上限 100 万；均衡：50 万；省电：12 万。auto 时按实测 FPS 自动伸缩。
+        self.perf_tier = "high"               # high / balanced / power
+        self.planet_auto = True               # 自动适配（目标 30 FPS 以上）
         # 比例模式：False 可视化比例（标记点按真实半径缩放，相对大小可辨），True 真实比例
         self.real_scale = False
         self.show_solid = True                # 实体球渲染（近距天体按真实半径绘制球体）
@@ -650,6 +656,7 @@ class Viewport(QOpenGLWidget):
         self._fps_frames = 0
         self._fps_t0 = _time.perf_counter()
         self._last_tick = _time.perf_counter()
+        self._adapt_last = 0.0                # 上次天体数量动态适配时刻
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -974,8 +981,47 @@ class Viewport(QOpenGLWidget):
         if enabled is not None:
             self.show_belt = bool(enabled)
         if count is not None:
-            self.belt_count = max(0, int(count))
+            self._apply_planet_count(int(count))
         self.update()
+
+    # ---------- 渲染性能档位 / 天体数量动态适配 ----------
+    def set_perf_tier(self, tier: str):
+        """切换性能档位（high / balanced / power）：调整数量上限并按档位重置起步数量。"""
+        if tier not in render_settings.TIERS:
+            return
+        self.perf_tier = tier
+        self._apply_planet_count(render_settings.initial_count(tier))
+
+    def set_planet_auto(self, enabled: bool):
+        """开关天体数量自动适配（关：使用手动设定的固定数量）。"""
+        self.planet_auto = bool(enabled)
+
+    def set_planet_count(self, count: int, auto: bool = None):
+        """手动设置渲染天体数量；auto 非空时同时切换自动/手动模式。"""
+        if auto is not None:
+            self.planet_auto = bool(auto)
+        self._apply_planet_count(int(count))
+
+    def _apply_planet_count(self, count: int):
+        """夹取到当前档位区间并应用；数量变化时发信号（供状态栏显示）。"""
+        new = render_settings.clamp_count(count, self.perf_tier)
+        if new != self.belt_count:
+            self.belt_count = new
+            try:
+                self.planetCountChanged.emit(new)
+            except Exception:
+                pass
+
+    def _adapt_planet_count(self, now: float):
+        """自动适配：每 1.5s 依实测 FPS 增减渲染天体数量（目标 30 FPS 以上）。"""
+        if not self.planet_auto or self.belt_count <= 0:
+            return
+        if now - self._adapt_last < 1.5:
+            return
+        self._adapt_last = now
+        nxt = render_settings.next_count(self.perf_tier, self.belt_count, self._fps)
+        if nxt > 0:
+            self._apply_planet_count(nxt)
 
     def set_solid(self, enabled):
         """实体球开关（关：全部退化为点精灵标记）"""
@@ -1201,6 +1247,7 @@ class Viewport(QOpenGLWidget):
             self._fps = self._fps_frames / (now - self._fps_t0)
             self._fps_frames = 0
             self._fps_t0 = now
+        self._adapt_planet_count(now)
         self._update_cadence(now)
         self.update()
 
@@ -2345,12 +2392,16 @@ class Viewport(QOpenGLWidget):
             painter.drawText(12, y, line)
             y += 16
         painter.setPen(QColor(160, 160, 160))
+        n_planets = min(int(self.belt_count), self._belt_max) if (self.show_belt and self._belt_max) else 0
+        _tier = render_settings.TIER_LABELS.get(self.perf_tier, self.perf_tier)
+        _mode = "自动" if self.planet_auto else "手动"
+        _num = f"天体 {n_planets:,}（{_tier}·{_mode}）"
         if self.on_demand:
             busy = _time.perf_counter() < self._active_until
-            painter.drawText(w - 210, h - 12,
-                             f"按需渲染: {'满帧' if busy else '低帧'}   FPS {self._fps:.0f}")
+            painter.drawText(w - 320, h - 12,
+                             f"{_num}   {'满帧' if busy else '低帧'}   FPS {self._fps:.0f}")
         else:
-            painter.drawText(w - 90, h - 12, f"FPS {self._fps:.0f}")
+            painter.drawText(w - 240, h - 12, f"{_num}   FPS {self._fps:.0f}")
         # 快捷键提示（小字浮层）
         painter.setFont(QFont("Microsoft YaHei UI", 8))
         painter.setPen(QColor(130, 130, 130))

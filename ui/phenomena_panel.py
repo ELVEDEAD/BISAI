@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from core import phenomena
 from core.time_system import datetime_to_jd
 from data.solar_system import EPHEMERIS_VALID_YEARS
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT
 
 # 观测点可选天体（行星 / 矮行星，默认地球）
@@ -55,11 +56,11 @@ class PhenomenaPanel(QWidget):
         layout.setSpacing(6)
 
         title = QLabel("天象推演")
-        title.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 15px; font-weight: bold;")
+        title.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(15)}px; font-weight: bold;")
         layout.addWidget(title)
 
         sub = QLabel("在指定日期区间内推演行星天象，点击结果跳转到该时刻")
-        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(sub)
 
         line = QFrame()
@@ -156,7 +157,7 @@ class PhenomenaPanel(QWidget):
         layout.addWidget(self.table, 1)
 
         self.lbl_status = QLabel("选择类型与日期区间，点击「开始推演」")
-        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(self.lbl_status)
 
         self.lbl_note = QLabel(
@@ -164,7 +165,7 @@ class PhenomenaPanel(QWidget):
             "「凌日」几何敏感，结果为候选事件，具体时刻与可见性需复核。\n"
             "天然卫星轨道相位为可复现假设值，故不推演卫星食/凌/掩。")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 10px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(10)}px;")
         layout.addWidget(self.lbl_note)
 
     # ---------- 下拉联动 ----------

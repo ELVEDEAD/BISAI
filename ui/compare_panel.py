@@ -17,16 +17,9 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QComboBox, QLabel, QPushButton, QLineEdit,
                              QTabWidget, QFileDialog, QMessageBox)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
-from matplotlib.figure import Figure
-from matplotlib import dates as mdates
-from matplotlib import rcParams
+from ui.mpl_backend import (FigureCanvasQTAgg, NavigationToolbar2QT,
+                            Figure, mdates)
 from datetime import datetime
-
-# 中文字体（Windows：微软雅黑；缺失时回退）
-rcParams["font.family"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-rcParams["axes.unicode_minus"] = False
 
 from core.time_system import jd_to_datetime, datetime_to_jd
 from core.constants import format_distance, AU_KM

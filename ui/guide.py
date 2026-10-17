@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QFrame, QCheckBox,
                              QScrollArea, QSizePolicy)
 
-from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT, BG_PANEL, BG_PANEL_LIGHT, BORDER
+from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT, BG_PANEL, BG_PANEL_LIGHT, BORDER, fs
 
 GUIDE_FLAG_FILE = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -28,7 +28,7 @@ GUIDE_FLAG_FILE = os.path.normpath(
 
 GUIDE_STEPS = [
     {
-        "title": "欢迎使用已知行星可视化",
+        "title": "欢迎使用 Astrarium",
         "body": ("本软件展示太阳系八大行星、矮行星、5700+ 颗系外行星、8 个黑洞、"
                  "近邻恒星与星际天体的三维位置与轨道。\n\n"
                  "接下来用 5 步快速了解核心操作（可随时跳过）。"),
@@ -114,7 +114,7 @@ QPushButton#guideBtn {{
     border: 1px solid {BORDER};
     border-radius: 3px;
     padding: 6px 16px;
-    font-size: 12px;
+    font-size: {fs(12)}px;
 }}
 QPushButton#guideBtn:hover {{ background-color: #4a4a4a; }}
 QPushButton#guideBtn:disabled {{ color: #555; }}
@@ -124,14 +124,14 @@ QPushButton#guideBtnPrimary {{
     border: 1px solid {ACCENT};
     border-radius: 3px;
     padding: 6px 16px;
-    font-size: 12px;
+    font-size: {fs(12)}px;
     font-weight: bold;
 }}
 QPushButton#guideBtnPrimary:hover {{ background-color: #6a4a28; }}
-QLabel#guideTitle {{ color: {ACCENT}; font-size: 16px; font-weight: bold; }}
-QLabel#guideBody {{ color: {TEXT_MAIN}; font-size: 13px; line-height: 1.6; }}
-QLabel#guideStep {{ color: {TEXT_DIM}; font-size: 11px; }}
-QCheckBox {{ color: {TEXT_DIM}; font-size: 11px; }}
+QLabel#guideTitle {{ color: {ACCENT}; font-size: {fs(16)}px; font-weight: bold; }}
+QLabel#guideBody {{ color: {TEXT_MAIN}; font-size: {fs(13)}px; line-height: 1.6; }}
+QLabel#guideStep {{ color: {TEXT_DIM}; font-size: {fs(11)}px; }}
+QCheckBox {{ color: {TEXT_DIM}; font-size: {fs(11)}px; }}
 QFrame#guideSep {{ background-color: {BORDER}; max-height: 1px; }}
 """
 

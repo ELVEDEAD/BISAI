@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QListWidgetItem,
                              QFrame, QDialog)
 
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT, BG_PANEL
 
 
@@ -156,7 +157,7 @@ class TeachingScenePanel(QWidget):
         layout.setSpacing(8)
 
         title = QLabel("预设教学场景")
-        title.setStyleSheet(f"color: {ACCENT}; font-size: 14px; font-weight: bold;")
+        title.setStyleSheet(f"color: {ACCENT}; font-size: {style.fs(14)}px; font-weight: bold;")
         layout.addWidget(title)
 
         self.list_widget = QListWidget()
@@ -169,13 +170,13 @@ class TeachingScenePanel(QWidget):
 
         self.lbl_desc = QLabel("")
         self.lbl_desc.setWordWrap(True)
-        self.lbl_desc.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 12px;")
+        self.lbl_desc.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(12)}px;")
         self.lbl_desc.setMinimumHeight(80)
         layout.addWidget(self.lbl_desc)
 
         self.lbl_note = QLabel("")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(self.lbl_note)
 
         self.btn_play = QPushButton("一键播放")

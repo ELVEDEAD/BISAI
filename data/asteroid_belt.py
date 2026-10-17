@@ -27,7 +27,7 @@ asteroid_belt.py —— 太阳系小天体点云数据生成（多族群）
 """
 import numpy as np
 
-BELT_MAX = 100000                                  # 预生成上限（全部族群合计）
+BELT_MAX = 1000000                                 # 预生成上限（全部族群合计，最多 100 万颗）
 JUPITER_L0_DEG = 34.39644051                       # 木星 J2000 平黄经（JPL 近似根数 L）
 TROJAN_A = 5.2043                                  # 特洛伊群 1:1 共振半长轴（AU）
 TROJAN_LIBRATION_DEG = 60.0                        # 距木星平黄经的聚集中心（L4/L5）

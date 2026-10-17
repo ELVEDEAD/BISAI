@@ -13,21 +13,24 @@ main_window_2d.py —— 二维平面视图窗口
 右侧分析面板与三维窗口完全复用（二维视口实现了同名接口）。
 """
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSplitter,
                              QLineEdit, QCheckBox, QLabel, QTabWidget,
                              QDialog, QTextEdit, QToolBar, QAction)
 
 from scene.viewport2d import Viewport2D
+from ui import dark_titlebar
+from ui.resource import icon_path
 from ui.style import TEXT_DIM
 from ui.timeline import Timeline
 from ui.tree_panel import TreePanel
 from ui.detail_panel import DetailPanel
-from ui.compare_panel import ComparePanel
 from ui.distance_panel import DistancePanel
 from ui.phenomena_panel import PhenomenaPanel
-from ui.exo_obs_panel import ExoObsPanel
-from ui.sky_panel import SkyPanel
 from ui.surface_panel import SurfacePanel
+from ui.ai_panel import AIPanel
+from ui.lazy_tabs import LazyTabManager
+from core.i18n import tr
 
 
 class MainWindow2D(QMainWindow):
@@ -38,7 +41,8 @@ class MainWindow2D(QMainWindow):
         self.bodies = bodies
         self.stars = stars
         self._on_switch_mode = on_switch_mode
-        self.setWindowTitle("已知行星可视化 —— 二维平面视图（俯视黄道面）")
+        self.setWindowTitle("Astrarium —— 二维平面视图（俯视黄道面）")
+        self.setWindowIcon(QIcon(icon_path()))
         self.resize(1400, 900)
 
         self._build_ui()
@@ -66,21 +70,28 @@ class MainWindow2D(QMainWindow):
         right_tabs = QTabWidget()
         self.detail_panel = DetailPanel(self.viewport)
         right_tabs.addTab(self.detail_panel, "详情")
-        self.compare_panel = ComparePanel(self.viewport.clock, self.bodies)
-        right_tabs.addTab(self.compare_panel, "对比分析")
-        self.detail_panel.compare_panel = self.compare_panel
+        # matplotlib 面板懒加载：首次切入标签页或代码访问时才构造
+        self._lazy = LazyTabManager(right_tabs)
+        self._lazy.add_lazy_tab("compare", "对比分析",
+                                lambda: self._new_mpl_panel("compare"),
+                                self._on_mpl_panel_created)
         self.distance_panel = DistancePanel(self.viewport, self.bodies)
         right_tabs.addTab(self.distance_panel, "测距")
         self.phenomena_panel = PhenomenaPanel(self.viewport, self.bodies)
         right_tabs.addTab(self.phenomena_panel, "天象推演")
-        self.exo_obs_panel = ExoObsPanel(self.viewport, self.bodies)
-        right_tabs.addTab(self.exo_obs_panel, "观测特征")
-        self.sky_panel = SkyPanel(self.viewport, self.bodies, self.stars)
-        right_tabs.addTab(self.sky_panel, "地面视角")
+        self._lazy.add_lazy_tab("exo_obs", "观测特征",
+                                lambda: self._new_mpl_panel("exo_obs"),
+                                self._on_mpl_panel_created)
+        self._lazy.add_lazy_tab("sci", "科研计算",
+                                lambda: self._new_mpl_panel("sci"),
+                                self._on_mpl_panel_created)
+        self._lazy.add_lazy_tab("sky", "地面视角",
+                                lambda: self._new_mpl_panel("sky"),
+                                self._on_mpl_panel_created)
         self.surface_panel = SurfacePanel(self.viewport, self.bodies, self.stars)
         right_tabs.addTab(self.surface_panel, "地表视角")
-        self.detail_panel.exo_obs_panel = self.exo_obs_panel
-        self.detail_panel.sky_panel = self.sky_panel
+        self.ai_panel = AIPanel()
+        right_tabs.addTab(self.ai_panel, tr("天文助手"))
         self.detail_panel.surface_panel = self.surface_panel
         self.detail_panel.right_tabs = right_tabs
         splitter.addWidget(right_tabs)
@@ -197,13 +208,45 @@ class MainWindow2D(QMainWindow):
         self.phenomena_panel.jumpRequested.connect(self._on_phenomena_jump)
 
     def _start_timers(self):
+        # sky_panel.tick 在面板懒创建后连接
         self._ui_timer = QTimer(self)
         self._ui_timer.timeout.connect(self.timeline.tick)
-        self._ui_timer.timeout.connect(self.sky_panel.tick)
         self._ui_timer.timeout.connect(self.surface_panel.tick)
         self._ui_timer.start(500)
 
+    # ---------- matplotlib 面板懒加载 ----------
+    def _new_mpl_panel(self, key):
+        """按需 import 并构造 matplotlib 面板（import 放函数内，避免启动即加载）"""
+        if key == "compare":
+            from ui.compare_panel import ComparePanel
+            return ComparePanel(self.viewport.clock, self.bodies)
+        if key == "exo_obs":
+            from ui.exo_obs_panel import ExoObsPanel
+            return ExoObsPanel(self.viewport, self.bodies)
+        if key == "sci":
+            from ui.sci_panel import SciPanel
+            return SciPanel()
+        if key == "sky":
+            from ui.sky_panel import SkyPanel
+            return SkyPanel(self.viewport, self.bodies, self.stars)
+        raise KeyError(key)
+
+    def _on_mpl_panel_created(self, key, panel):
+        """面板懒创建完成后的依赖注入 / 信号连接"""
+        if key == "compare":
+            self.detail_panel.compare_panel = panel
+        elif key == "exo_obs":
+            self.detail_panel.exo_obs_panel = panel
+            body = getattr(self.detail_panel, "_body", None)
+            if body is not None:
+                panel.set_body(body)
+        elif key == "sky":
+            self.detail_panel.sky_panel = panel
+            self._ui_timer.timeout.connect(panel.tick)
+        # sci 面板无外部依赖
+
     def showEvent(self, ev):
+        dark_titlebar.apply_dark_titlebar(self)
         if not self._ui_timer.isActive():
             self._ui_timer.start(500)
         super().showEvent(ev)
@@ -216,7 +259,9 @@ class MainWindow2D(QMainWindow):
     def _on_tree_click(self, body):
         self.viewport.focus_body_by_name(body.name)
         self.detail_panel.show_body(body)
-        self.exo_obs_panel.set_body(body)
+        exo = self._lazy.get("exo_obs")
+        if exo is not None:
+            exo.set_body(body)
         self.viewport.update()
 
     def _on_system_click(self, group):
@@ -225,12 +270,47 @@ class MainWindow2D(QMainWindow):
     def _on_viewport_select(self, body):
         self.detail_panel.show_body(body)
         self.tree_panel.select_body(body.name)
-        self.exo_obs_panel.set_body(body)
+        exo = self._lazy.get("exo_obs")
+        if exo is not None:
+            exo.set_body(body)
         self.viewport.focus_body_by_name(body.name)
+        self._set_ai_context(body)
+
+    def _set_ai_context(self, body):
+        """把当前选中天体告知「天文助手」，使回答更贴合画面。"""
+        if body is None or not getattr(self, "ai_panel", None):
+            return
+        try:
+            from data.loader import BODY_TYPE_LABELS
+            name = getattr(body, "name", "") or ""
+            btype = getattr(body, "body_type", "") or ""
+            kind = BODY_TYPE_LABELS.get(btype, btype)
+            parts = ["当前选中天体：%s（%s）" % (name, kind)] if kind else \
+                    ["当前选中天体：%s" % name]
+            host = getattr(body, "host", "")
+            if host:
+                parts.append("宿主：%s" % host)
+            if getattr(body, "a_au", None):
+                parts.append("轨道半长轴：%.3f AU" % body.a_au)
+            if getattr(body, "period_days", None):
+                parts.append("公转周期：%.2f 天" % body.period_days)
+            if getattr(body, "radius_km", None):
+                parts.append("半径：%.0f km" % body.radius_km)
+            if getattr(body, "mass_earth", None):
+                parts.append("质量：%.3f 地球质量" % body.mass_earth)
+            if getattr(body, "dist_pc", None):
+                parts.append("距离：%.2f pc" % body.dist_pc)
+            if getattr(body, "disc_year", None):
+                parts.append("发现年份：%d" % body.disc_year)
+            self.ai_panel.set_context("；".join(parts))
+        except Exception:
+            pass
 
     def _on_date_jump(self, jd):
         self.viewport.update()
-        self.sky_panel._sync_from_clock()
+        sky = self._lazy.get("sky")
+        if sky is not None:
+            sky._sync_from_clock()
         self.surface_panel._sync_from_clock()
 
     def _on_phenomena_jump(self, jd, focus_name):

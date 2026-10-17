@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import QWidget
 from core.constants import J2000_JD
 from core.kepler import elements_to_position, solve_kepler
 from core.time_system import SimulationClock
+from ui import style
 from ui.style import BG_MAIN, ACCENT, ACCENT_BLUE, TEXT_MAIN, TEXT_DIM
 
 # 网格环半径阶梯（自适应：只画像素半径合适的环）
@@ -346,7 +347,7 @@ class Viewport2D(QWidget):
         # 同心圆（AU 环）
         pen = QPen(QColor(0x33, 0x33, 0x33), 1.0)
         p.setPen(pen)
-        label_font = QFont("Microsoft YaHei UI", 8)
+        label_font = QFont("Microsoft YaHei UI", style.fs(8))
         p.setFont(label_font)
         limit = max(w, h) * 1.6
         for r in GRID_LADDER_AU:
@@ -398,7 +399,7 @@ class Viewport2D(QWidget):
             return
         w, h = self.width(), self.height()
         show_moons = self.show_moons and self._scale > MOON_ZOOM_PX_PER_AU
-        label_font = QFont("Microsoft YaHei UI", 8)
+        label_font = QFont("Microsoft YaHei UI", style.fs(8))
 
         # 先画卫星，再画行星，最后画太阳（保证太阳/行星在上层）
         order = sorted(self._solar_idx,
@@ -443,7 +444,7 @@ class Viewport2D(QWidget):
             if i is None:
                 continue
             sx, sy = self._to_screen(self._xy[i])
-            p.setFont(QFont("Microsoft YaHei UI", 8, QFont.Bold))
+            p.setFont(QFont("Microsoft YaHei UI", style.fs(8), QFont.Bold))
             self._draw_text(p, sx + 5, sy + 12, slot, QColor(0x4d, 0xd0, 0xe0))
 
     def _marker_radius(self, body, bt):
@@ -470,11 +471,11 @@ class Viewport2D(QWidget):
         p.drawLine(QPointF(*a), QPointF(*b))
         d = float(np.linalg.norm(self._body_pos[ia] - self._body_pos[ib]))
         mx, my = (a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5
-        p.setFont(QFont("Microsoft YaHei UI", 8))
+        p.setFont(QFont("Microsoft YaHei UI", style.fs(8)))
         self._draw_text(p, mx + 4, my - 4, f"{d:.4g} AU", QColor(0x4d, 0xd0, 0xe0))
 
     def _draw_hud(self, p):
-        p.setFont(QFont("Microsoft YaHei UI", 9))
+        p.setFont(QFont("Microsoft YaHei UI", style.fs(9)))
         dt = self.clock.now_datetime()
         self._draw_text(p, 10, 18, f"二维平面视图（俯视黄道面）　{dt:%Y-%m-%d %H:%M} UTC",
                         QColor(TEXT_DIM))

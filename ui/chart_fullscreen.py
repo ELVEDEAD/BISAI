@@ -15,8 +15,8 @@ chart_fullscreen.py —— 图表全屏放大通用组件
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton, QHBoxLayout,
                              QLabel, QFrame)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+from ui.mpl_backend import FigureCanvasQTAgg, NavigationToolbar2QT
+from ui import style
 from ui.style import BG_MAIN, TEXT_MAIN, TEXT_DIM, ACCENT
 
 
@@ -60,12 +60,12 @@ class ChartFullscreenDialog(QDialog):
 
         lbl = QLabel(self._title)
         lbl.setStyleSheet(
-            f"color: {TEXT_MAIN}; font-size: 13px; font-weight: bold;")
+            f"color: {TEXT_MAIN}; font-size: {style.fs(13)}px; font-weight: bold;")
         top_layout.addWidget(lbl)
         top_layout.addStretch()
 
         hint = QLabel("滚轮缩放 · 拖拽平移 · Esc 退出")
-        hint.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        hint.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         top_layout.addWidget(hint)
 
         btn_close = QPushButton("✕")
@@ -73,7 +73,7 @@ class ChartFullscreenDialog(QDialog):
         btn_close.setToolTip("关闭全屏 (Esc)")
         btn_close.setStyleSheet(
             f"QPushButton{{background:#3a2a20;color:{ACCENT};border:none;"
-            f"font-size:14px;border-radius:4px;}}"
+            f"font-size: {style.fs(14)}px;border-radius:4px;}}"
             f"QPushButton:hover{{background:#5a3a28;}}")
         btn_close.clicked.connect(self.accept)
         top_layout.addWidget(btn_close)

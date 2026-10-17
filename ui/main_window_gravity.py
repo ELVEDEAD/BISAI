@@ -19,11 +19,14 @@ main_window_gravity.py —— 「引力系统」模式窗口（时空弯曲网�
 import numpy as np
 
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QSplitter, QCheckBox, QLabel, QComboBox,
                              QToolBar, QAction, QDialog, QTextEdit)
 
 from scene.viewport import Viewport
+from ui import dark_titlebar
+from ui.resource import icon_path
 from ui.style import BG_PANEL, BORDER, TEXT_MAIN, TEXT_DIM, ACCENT
 from ui.timeline import Timeline
 from ui.tree_panel import TreePanel
@@ -42,7 +45,8 @@ class GravityWindow(QMainWindow):
         self.stars = stars
         self._switch_cb = None
         self._selected = None
-        self.setWindowTitle("已知行星可视化 —— 引力系统（时空弯曲网格）")
+        self.setWindowTitle("Astrarium —— 引力系统（时空弯曲网格）")
+        self.setWindowIcon(QIcon(icon_path()))
         self.resize(1400, 900)
 
         self._build_ui()
@@ -210,6 +214,7 @@ class GravityWindow(QMainWindow):
         self._ui_timer.start(500)
 
     def showEvent(self, ev):
+        dark_titlebar.apply_dark_titlebar(self)
         if not self._ui_timer.isActive():
             self._ui_timer.start(500)
         super().showEvent(ev)
