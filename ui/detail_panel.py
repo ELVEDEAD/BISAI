@@ -125,8 +125,8 @@ class DetailPanel(QWidget):
         """主题变化：重建依赖调色板的内联样式。"""
         p = style.palette()
         self.lbl_title.setStyleSheet(
-            f"color: {p['TEXT_MAIN']}; font-size: 15px; font-weight: bold;")
-        self.lbl_grade.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: 11px;")
+            f"color: {p['TEXT_MAIN']}; font-size: {style.fs(15)}px; font-weight: bold;")
+        self.lbl_grade.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: {style.fs(11)}px;")
         self._line.setStyleSheet(f"color: {p['BORDER']};")
 
     # ---------- 显示 ----------

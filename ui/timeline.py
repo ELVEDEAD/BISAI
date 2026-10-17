@@ -75,7 +75,7 @@ class Timeline(QWidget):
         # 当前日期
         self.lbl_date = QLabel("")
         self.lbl_date.setStyleSheet(
-            f"color: {style.palette()['TEXT_MAIN']}; font-size: 13px; font-weight: bold;")
+            f"color: {style.palette()['TEXT_MAIN']}; font-size: {style.fs(13)}px; font-weight: bold;")
         self.lbl_date.setMinimumWidth(120)
         layout.addWidget(self.lbl_date)
 
@@ -124,7 +124,7 @@ class Timeline(QWidget):
 
         # 星历范围提示
         self.lbl_ephem = QLabel("")
-        self.lbl_ephem.setStyleSheet(f"color: {style.palette()['TEXT_DIM']}; font-size: 10px;")
+        self.lbl_ephem.setStyleSheet(f"color: {style.palette()['TEXT_DIM']}; font-size: {style.fs(10)}px;")
         layout.addWidget(self.lbl_ephem)
 
     # ---------- 操作 ----------
@@ -240,10 +240,10 @@ class Timeline(QWidget):
         p = style.palette()
         if year < lo or year > hi:
             self.lbl_ephem.setText(tr("⚠ 超出星历范围 ({lo}–{hi})").format(lo=lo, hi=hi))
-            self.lbl_ephem.setStyleSheet(f"color: {p['ACCENT']}; font-size: 10px;")
+            self.lbl_ephem.setStyleSheet(f"color: {p['ACCENT']}; font-size: {style.fs(10)}px;")
         else:
             self.lbl_ephem.setText(tr("星历范围: {lo}–{hi}").format(lo=lo, hi=hi))
-            self.lbl_ephem.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: 10px;")
+            self.lbl_ephem.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: {style.fs(10)}px;")
 
     def tick(self):
         """由主窗口定时器调用：刷新日期显示（不重发信号）"""
@@ -270,6 +270,6 @@ class Timeline(QWidget):
         p = style.palette()
         self.lbl_speed.setStyleSheet(f"color: {p['TEXT_DIM']};")
         self.lbl_date.setStyleSheet(
-            f"color: {p['TEXT_MAIN']}; font-size: 13px; font-weight: bold;")
-        self.lbl_ephem.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: 10px;")
+            f"color: {p['TEXT_MAIN']}; font-size: {style.fs(13)}px; font-weight: bold;")
+        self.lbl_ephem.setStyleSheet(f"color: {p['TEXT_DIM']}; font-size: {style.fs(10)}px;")
         self._refresh_ephem()

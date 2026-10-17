@@ -77,7 +77,7 @@ class TreePanel(QWidget):
 
         self.lbl_count = QLabel("")
         self.lbl_count.setStyleSheet(
-            f"color: {style.palette()['TEXT_DIM']}; font-size: 10px;")
+            f"color: {style.palette()['TEXT_DIM']}; font-size: {style.fs(10)}px;")
         self.lbl_count.setWordWrap(True)
         layout.addWidget(self.lbl_count)
 
@@ -343,4 +343,4 @@ class TreePanel(QWidget):
 
     def restyle(self):
         self.lbl_count.setStyleSheet(
-            f"color: {style.palette()['TEXT_DIM']}; font-size: 10px;")
+            f"color: {style.palette()['TEXT_DIM']}; font-size: {style.fs(10)}px;")

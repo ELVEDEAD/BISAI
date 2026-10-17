@@ -13,35 +13,35 @@ style.py —— 界面主题（夜间 / 日间）与全局样式表
 
 # ---------------------------------------------------------------- 调色板
 NIGHT = {
-    "BG_MAIN": "#1e1f22",        # 主背景（视口同色系）
-    "BG_PANEL": "#26272b",       # 面板 / 侧栏
-    "BG_PANEL_LIGHT": "#33353a", # 更浅层（输入框 / hover）
+    "BG_MAIN": "#1f2023",        # 主背景（深灰，非纯黑，降低夜间反差）
+    "BG_PANEL": "#27282c",       # 面板 / 侧栏
+    "BG_PANEL_LIGHT": "#34363b", # 更浅层（输入框 / hover）
     "ACCENT": "#e6913f",         # 强调色（柔和橙，仅选中 / 激活态）
     "ACCENT_BLUE": "#5a83c4",    # 备选科技蓝
-    "TEXT_MAIN": "#e6e6e6",      # 主文字
-    "TEXT_DIM": "#9aa0a6",       # 次要文字
-    "BORDER": "#34363c",         # 细边框
+    "TEXT_MAIN": "#dfe0e2",      # 主文字（略降亮度，减轻长时间观测疲劳）
+    "TEXT_DIM": "#95999e",       # 次要文字
+    "BORDER": "#35373d",         # 细边框
     "HOVER": "#3a3c42",          # hover 背景
-    "HOVER_STRONG": "#43454c",   # 树 / 列表 hover
+    "HOVER_STRONG": "#43454b",   # 树 / 列表 hover
     "TOOLTIP_BG": "#2d2f34",     # 提示框背景
     "TOOLTIP_BORDER": "#4a4d54",
-    "SHADOW": "#15161a",
+    "SHADOW": "#16171a",
 }
 
 DAY = {
-    "BG_MAIN": "#f4f5f7",
-    "BG_PANEL": "#ffffff",
-    "BG_PANEL_LIGHT": "#eceef2",
-    "ACCENT": "#d9822b",
+    "BG_MAIN": "#f5f4ef",        # 主背景（暖调米白，避免纯白的刺眼感）
+    "BG_PANEL": "#fbfaf6",       # 面板 / 侧栏（米白，非纯白）
+    "BG_PANEL_LIGHT": "#eeede7", # 更浅层（输入框 / hover）
+    "ACCENT": "#cf7d2a",         # 强调色（略降饱和，柔和）
     "ACCENT_BLUE": "#4a78b8",
-    "TEXT_MAIN": "#2b2f36",
-    "TEXT_DIM": "#6b7280",
-    "BORDER": "#d9dde3",
-    "HOVER": "#e9ecf1",
-    "HOVER_STRONG": "#e2e6ec",
-    "TOOLTIP_BG": "#ffffff",
-    "TOOLTIP_BORDER": "#cfd4db",
-    "SHADOW": "#c9ced6",
+    "TEXT_MAIN": "#33363b",      # 主文字（深灰，避免纯黑的高对比）
+    "TEXT_DIM": "#6d7076",
+    "BORDER": "#dcdad2",
+    "HOVER": "#eae9e3",
+    "HOVER_STRONG": "#e2e1da",
+    "TOOLTIP_BG": "#fbfaf6",
+    "TOOLTIP_BORDER": "#d3d1c9",
+    "SHADOW": "#cdcbc3",
 }
 
 THEMES = {"night": NIGHT, "day": DAY}
@@ -52,6 +52,41 @@ THEME_LABELS = {"night": "夜间", "day": "日间"}
 
 _current_theme = "night"
 _listeners = []
+
+# ---------------------------------------------------------------- 字体缩放
+# 界面字体缩放倍率：1.0 = 默认 12px。设置面板滑块可调 0.8 ~ 1.6。
+# 所有 QSS 与内联样式中的字号都应通过 fs() 取整换算，方能随滑块同步缩放。
+FONT_SCALE_MIN = 0.8
+FONT_SCALE_MAX = 1.6
+_font_scale = 1.0
+
+
+def fs(px: float) -> int:
+    """把基准像素字号按当前缩放倍率换算为实际像素（下限 8px）。"""
+    return max(8, int(round(float(px) * _font_scale)))
+
+
+def font_scale() -> float:
+    return _font_scale
+
+
+def apply_font_scale(scale: float):
+    """设置界面字体缩放倍率并重建全局样式表、通知监听者重建内联样式。"""
+    global _font_scale, MAIN_QSS
+    try:
+        scale = float(scale)
+    except Exception:
+        return
+    scale = max(FONT_SCALE_MIN, min(FONT_SCALE_MAX, scale))
+    if abs(scale - _font_scale) < 1e-6:
+        return
+    _font_scale = scale
+    MAIN_QSS = build_qss(THEMES[_current_theme])
+    for cb in list(_listeners):
+        try:
+            cb()
+        except Exception:
+            pass
 
 # 模块级调色板常量（供既有代码 `from ui.style import BG_MAIN` 引用；
 # apply_theme 会就地更新这些全局变量）
@@ -112,7 +147,7 @@ QWidget {{
     background-color: {p['BG_PANEL']};
     color: {p['TEXT_MAIN']};
     font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
-    font-size: 12px;
+    font-size: {fs(12)}px;
 }}
 QMainWindow, QDialog {{
     background-color: {p['BG_MAIN']};
@@ -321,7 +356,7 @@ QToolTip {{
     border: 1px solid {p['TOOLTIP_BORDER']};
     border-radius: 6px;
     padding: 6px 9px;
-    font-size: 12px;
+    font-size: {fs(12)}px;
     opacity: 245;
 }}
 QScrollArea {{
@@ -329,7 +364,7 @@ QScrollArea {{
 }}
 QLabel#hudLabel {{
     color: {p['TEXT_DIM']};
-    font-size: 11px;
+    font-size: {fs(11)}px;
 }}
 """
 

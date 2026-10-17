@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from core.constants import (format_distance, format_light_time, AU_KM, LY_AU,
                             PARSEC_AU, GRADE_DESCRIPTION)
 from data.loader import BODY_TYPE_LABELS
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT
 from ui.widgets import make_searchable, resolve_combo_text
 
@@ -51,11 +52,11 @@ class DistancePanel(QWidget):
         layout.setSpacing(6)
 
         title = QLabel("测距 / 光行时间")
-        title.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 15px; font-weight: bold;")
+        title.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(15)}px; font-weight: bold;")
         layout.addWidget(title)
 
         sub = QLabel("选择两个天体，实时显示距离与光传播所需时间")
-        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(sub)
 
         line = QFrame()
@@ -102,11 +103,11 @@ class DistancePanel(QWidget):
         # 主要读数
         self.lbl_dist = QLabel("—")
         self.lbl_dist.setStyleSheet(
-            f"color: {ACCENT}; font-size: 20px; font-weight: bold;")
+            f"color: {ACCENT}; font-size: {style.fs(20)}px; font-weight: bold;")
         layout.addWidget(self.lbl_dist)
 
         self.lbl_light = QLabel("光行时间 —")
-        self.lbl_light.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 13px;")
+        self.lbl_light.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(13)}px;")
         layout.addWidget(self.lbl_light)
 
         line2 = QFrame()
@@ -124,7 +125,7 @@ class DistancePanel(QWidget):
             "例如日地平均距离约 1 AU，光需约 8 分 19 秒。\n"
             "读数与底部时间轴同步：拖动时间轴即可看到距离随时间变化。")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(self.lbl_note)
         layout.addStretch()
 

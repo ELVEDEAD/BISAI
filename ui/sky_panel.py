@@ -23,15 +23,11 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QComboBox, QLabel, QPushButton, QDateEdit,
                              QTimeEdit, QCheckBox, QScrollArea, QFileDialog,
                              QFrame)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-from matplotlib import rcParams
-
-rcParams["font.family"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-rcParams["axes.unicode_minus"] = False
+from ui.mpl_backend import FigureCanvasQTAgg, Figure
 
 from core import observer as O
 from core.time_system import datetime_to_jd
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT
 from ui.widgets import make_searchable, resolve_combo_text
 
@@ -64,13 +60,13 @@ class SkyPanel(QWidget):
         layout.setSpacing(6)
 
         head = QLabel("地面视角")
-        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 15px; font-weight: bold;")
+        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(15)}px; font-weight: bold;")
         layout.addWidget(head)
 
         sub = QLabel("站在选定地点抬头看天：行星、太阳与亮星的地平坐标，"
                      "含当日日轨线与升落时刻")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(sub)
 
         grid = QGridLayout()
@@ -143,7 +139,7 @@ class SkyPanel(QWidget):
 
         foot = QHBoxLayout()
         self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         foot.addWidget(self.lbl_status, 1)
         btn_png = QPushButton("导出 PNG")
         btn_png.clicked.connect(self._export_png)
@@ -155,7 +151,7 @@ class SkyPanel(QWidget):
             "未逐点建模大气折射，日出/日落采用 −0.833° 标准判据（含折射 34′ 与日面半径 16′）；"
             "天然卫星相位为假设值，位置无预测意义，故不绘制。")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 10px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(10)}px;")
         layout.addWidget(self.lbl_note)
 
     # ---------- 首次显示 ----------
@@ -352,11 +348,11 @@ class SkyPanel(QWidget):
 
         for i, (k, v) in enumerate(rows):
             kl = QLabel(k)
-            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
             vl = QLabel(str(v))
             vl.setWordWrap(True)
             vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 11px;")
+            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(11)}px;")
             self.tbl_grid.addWidget(kl, i, 0, Qt.AlignTop)
             self.tbl_grid.addWidget(vl, i, 1, Qt.AlignTop)
         self.tbl_grid.setColumnStretch(1, 1)

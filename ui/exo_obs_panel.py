@@ -15,15 +15,10 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QComboBox, QLabel, QPushButton, QSlider,
                              QScrollArea, QFileDialog, QFrame)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-from matplotlib import rcParams
-from matplotlib import ticker as mticker
-
-rcParams["font.family"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-rcParams["axes.unicode_minus"] = False
+from ui.mpl_backend import FigureCanvasQTAgg, Figure, mticker
 
 from core import exo_obs as E
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT
 from ui.widgets import make_searchable, resolve_combo_text
 
@@ -82,12 +77,12 @@ class ExoObsPanel(QWidget):
         layout.setSpacing(6)
 
         head = QLabel("观测特征")
-        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 15px; font-weight: bold;")
+        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(15)}px; font-weight: bold;")
         layout.addWidget(head)
 
         sub = QLabel("凌星光变 / 视向速度 / 宜居带——从行星与宿主星参数解析推算")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(sub)
 
         grid = QGridLayout()
@@ -153,7 +148,7 @@ class ExoObsPanel(QWidget):
 
         foot = QHBoxLayout()
         self.lbl_grade = QLabel("")
-        self.lbl_grade.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_grade.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         foot.addWidget(self.lbl_grade, 1)
         btn_png = QPushButton("导出 PNG")
         btn_png.clicked.connect(self._export_png)
@@ -165,7 +160,7 @@ class ExoObsPanel(QWidget):
             "视向速度取 sin i = 1，故 K 为最小值；宜居带采用 Kopparapu et al. 2013 "
             "的 Seff 多项式（适用恒星 2600–7200 K）。缺参数一律标「未知」，不作假设填充。")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 10px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(10)}px;")
         layout.addWidget(self.lbl_note)
 
     # ---------- 首次显示 ----------
@@ -407,11 +402,11 @@ class ExoObsPanel(QWidget):
         rows = E.observation_rows(self._body)
         for i, (k, v) in enumerate(rows):
             kl = QLabel(k)
-            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
             vl = QLabel(str(v))
             vl.setWordWrap(True)
             vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 11px;")
+            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(11)}px;")
             self.tbl_grid.addWidget(kl, i, 0, Qt.AlignTop)
             self.tbl_grid.addWidget(vl, i, 1, Qt.AlignTop)
         self.tbl_grid.setColumnStretch(1, 1)

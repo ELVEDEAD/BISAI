@@ -10,15 +10,10 @@ import numpy as np
 
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QComboBox,
                              QLabel, QPushButton)
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-from matplotlib import rcParams
+from ui.mpl_backend import FigureCanvasQTAgg, Figure
 from core.constants import R_EARTH_KM, R_JUPITER_KM, R_SUN_KM
 from ui.style import TEXT_MAIN, TEXT_DIM
 from ui.chart_fullscreen import ChartFullscreenDialog
-
-rcParams["font.family"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
-rcParams["axes.unicode_minus"] = False
 
 MPL_BG = "#252526"
 MPL_AX = "#2b2b2b"

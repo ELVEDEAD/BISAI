@@ -8,12 +8,15 @@ launcher.py —— 启动器（模式选择）窗口
 同一时刻只显示一个主窗口；两个主窗口工具栏的「切换模式」可回到本窗口重新选择。
 """
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QFrame)
 
 from ui import style
+from ui import dark_titlebar, display_mode
+from ui.resource import icon_path
 from core import i18n
+from core import app_settings
 from core.i18n import tr
 
 
@@ -28,7 +31,8 @@ class LauncherWindow(QWidget):
         self.win2d = None
         self.win_gravity = None
 
-        self.setWindowTitle(tr("已知行星可视化 —— 选择视图模式"))
+        self.setWindowTitle(tr("Astrarium —— 选择视图模式"))
+        self.setWindowIcon(QIcon(icon_path()))
         self.setMinimumSize(880, 440)
         self.resize(940, 500)
         self._build_ui()
@@ -36,6 +40,10 @@ class LauncherWindow(QWidget):
 
         i18n.add_listener(self.retranslate)
         style.add_theme_listener(self._apply_style)
+
+    def showEvent(self, ev):
+        dark_titlebar.apply_dark_titlebar(self)
+        super().showEvent(ev)
 
     def closeEvent(self, ev):
         i18n.remove_listener(self.retranslate)
@@ -47,14 +55,14 @@ class LauncherWindow(QWidget):
         p = style.palette()
         return f"""
 QWidget#launcherRoot {{ background-color: {p['BG_MAIN']}; }}
-QLabel#launcherTitle {{ color: {p['TEXT_MAIN']}; font-size: 22px; font-weight: 600; }}
-QLabel#launcherSub   {{ color: {p['TEXT_DIM']}; font-size: 12px; }}
+QLabel#launcherTitle {{ color: {p['TEXT_MAIN']}; font-size: {style.fs(22)}px; font-weight: 600; }}
+QLabel#launcherSub   {{ color: {p['TEXT_DIM']}; font-size: {style.fs(12)}px; }}
 QPushButton#modeCard {{
     background-color: {p['BG_PANEL']};
     border: 1px solid {p['BORDER']};
     border-radius: 6px;
     color: {p['TEXT_MAIN']};
-    font-size: 14px;
+    font-size: {style.fs(14)}px;
     text-align: left;
     padding: 16px 20px;
 }}
@@ -62,7 +70,7 @@ QPushButton#modeCard:hover {{ background-color: {p['BG_PANEL_LIGHT']}; }}
 QPushButton#modeCard3d:hover {{ border: 1px solid {p['ACCENT']}; }}
 QPushButton#modeCard2d:hover {{ border: 1px solid {p['ACCENT_BLUE']}; }}
 QPushButton#modeCardGravity:hover {{ border: 1px solid #4caf50; }}
-QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
+QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: {style.fs(11)}px; }}
 """
 
     def _apply_style(self):
@@ -76,7 +84,7 @@ QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
         root.setContentsMargins(34, 30, 34, 26)
         root.setSpacing(14)
 
-        self._title = QLabel(tr("已知行星可视化"))
+        self._title = QLabel(tr("Astrarium"))
         self._title.setObjectName("launcherTitle")
         root.addWidget(self._title)
 
@@ -136,8 +144,8 @@ QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
 
     # ---------- 语言 / 主题 ----------
     def retranslate(self):
-        self.setWindowTitle(tr("已知行星可视化 —— 选择视图模式"))
-        self._title.setText(tr("已知行星可视化"))
+        self.setWindowTitle(tr("Astrarium —— 选择视图模式"))
+        self._title.setText(tr("Astrarium"))
         self._sub.setText(tr("太阳系 + 系外行星 · 请选择视图模式"))
         self.btn_3d.setText(tr(
             "3D 立体视图\n\n三维轨道空间 · 可旋转缩放\n实体球 + 程序化表面贴图\n"
@@ -167,9 +175,8 @@ QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
                     self.win2d.hide()
                 if self.win_gravity is not None:
                     self.win_gravity.hide()
-                self.win3d.show()
-                self.win3d.raise_()
-                self.win3d.activateWindow()
+                display_mode.apply_display_mode(
+                    self.win3d, app_settings.get_display_mode())
             elif mode == "2d":
                 if self.win2d is None:
                     from ui.main_window_2d import MainWindow2D
@@ -179,9 +186,8 @@ QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
                     self.win3d.hide()
                 if self.win_gravity is not None:
                     self.win_gravity.hide()
-                self.win2d.show()
-                self.win2d.raise_()
-                self.win2d.activateWindow()
+                display_mode.apply_display_mode(
+                    self.win2d, app_settings.get_display_mode())
             elif mode == "gravity":
                 if self.win_gravity is None:
                     from ui.main_window_gravity import GravityWindow
@@ -191,9 +197,8 @@ QLabel#launcherFoot {{ color: {p['TEXT_DIM']}; font-size: 11px; }}
                     self.win3d.hide()
                 if self.win2d is not None:
                     self.win2d.hide()
-                self.win_gravity.show()
-                self.win_gravity.raise_()
-                self.win_gravity.activateWindow()
+                display_mode.apply_display_mode(
+                    self.win_gravity, app_settings.get_display_mode())
         except Exception:
             # 打包为 --windowed 后 stderr 不可见，异常会被静默吞掉，
             # 表现为「点了没反应」。此处显式弹窗提示，并保留启动器窗口。

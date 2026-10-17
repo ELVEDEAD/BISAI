@@ -38,6 +38,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from core import surface as S
 from core import observer as O
 from core.time_system import datetime_to_jd
+from ui import style
 from ui.style import TEXT_MAIN, TEXT_DIM, ACCENT
 from ui.widgets import make_searchable, resolve_combo_text
 
@@ -201,13 +202,13 @@ class SurfacePanel(QWidget):
         layout.setSpacing(6)
 
         head = QLabel("地表视角")
-        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 15px; font-weight: bold;")
+        head.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(15)}px; font-weight: bold;")
         layout.addWidget(head)
 
         sub = QLabel("站在选定星球表面向四周望去：天空底色随太阳高度变化，"
                      "亮星为柔和光晕，太阳/月球按视直径成盘，地平线为静态地形剪影")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         layout.addWidget(sub)
 
         grid = QGridLayout()
@@ -320,7 +321,7 @@ class SurfacePanel(QWidget):
 
         foot = QHBoxLayout()
         self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
         foot.addWidget(self.lbl_status, 1)
         btn_png = QPushButton("导出 PNG")
         btn_png.clicked.connect(self._export_png)
@@ -332,7 +333,7 @@ class SurfacePanel(QWidget):
             "其他天体本初子午线角取可复现假设值（只影响经度零点）。"
             "未建模大气折射与行星相位；地形剪影为程序化示意，非实测地貌。")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: 10px;")
+        self.lbl_note.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(10)}px;")
         layout.addWidget(self.lbl_note)
 
         self._on_body_pick()
@@ -690,7 +691,7 @@ class SurfacePanel(QWidget):
 
             if labels or sel:
                 p.setPen(QColor(ACCENT) if sel else QColor(225, 225, 225))
-                f = QFont("Microsoft YaHei UI", 8)
+                f = QFont("Microsoft YaHei UI", style.fs(8))
                 f.setBold(sel)
                 p.setFont(f)
                 p.drawText(QPointF(x + 7.0, y - 6.0), o["name"])
@@ -708,7 +709,7 @@ class SurfacePanel(QWidget):
         p.drawEllipse(QPointF(x, y), R, R)
 
     def _draw_cardinals(self, p, v, w, h, sx, horizon_y):
-        p.setFont(QFont("Microsoft YaHei UI", 8))
+        p.setFont(QFont("Microsoft YaHei UI", style.fs(8)))
         for az, name in _CARDINALS:
             x = sx(az)
             if x < 8 or x > w - 8:
@@ -718,7 +719,7 @@ class SurfacePanel(QWidget):
             p.drawText(QPointF(x - 6.0, horizon_y - 6.0), name)
 
     def _draw_hud(self, p, v, w, h):
-        p.setFont(QFont("Microsoft YaHei UI", 9))
+        p.setFont(QFont("Microsoft YaHei UI", style.fs(9)))
         p.setPen(QColor(235, 235, 235, 220))
         p.drawText(8, 18, f"{v['body_name']} 地表　{v['az_center']:.0f}° / "
                           f"{v['alt_center']:+.0f}°　视场 {v['hfov']:.0f}°")
@@ -766,11 +767,11 @@ class SurfacePanel(QWidget):
 
         for i, (k, val) in enumerate(rows):
             kl = QLabel(k)
-            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: 11px;")
+            kl.setStyleSheet(f"color: {TEXT_DIM}; font-size: {style.fs(11)}px;")
             vl = QLabel(str(val))
             vl.setWordWrap(True)
             vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: 11px;")
+            vl.setStyleSheet(f"color: {TEXT_MAIN}; font-size: {style.fs(11)}px;")
             self.tbl_grid.addWidget(kl, i, 0, Qt.AlignTop)
             self.tbl_grid.addWidget(vl, i, 1, Qt.AlignTop)
         self.tbl_grid.setColumnStretch(1, 1)

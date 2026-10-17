@@ -10,6 +10,7 @@ loader.py —— 天体数据统一加载层
 """
 import math
 import os
+import sys
 import numpy as np
 from dataclasses import dataclass, field
 
@@ -506,14 +507,76 @@ EXO_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exoplan
 # 最近一次加载中，因缺宿主恒星位置（无距离，无法三维定位）被跳过的条目数
 EXO_SKIPPED_NO_HOST = 0
 
+# CSV → pickle 二进制缓存：命中时跳过 pandas 导入（约 2.9s）与 CSV
+# 解析（约 0.9s）；以 CSV 的 mtime+size+缓存版本号三方校验，任一
+# 变化即失效重建。版本号与 Body 字段结构相关，字段变更时需 +1。
+_EXO_CACHE_VERSION = 1
+
+
+def _cache_dir() -> str:
+    """可写的程序目录（打包后为 exe 目录，与设置文件同目录；源码运行时为项目根）"""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _exo_cache_path() -> str:
+    return os.path.join(_cache_dir(), "exoplanets_cache.pkl")
+
+
+def _try_load_exo_cache():
+    """读取系外行星二进制缓存；未命中 / 过期 / 损坏时返回 None。"""
+    csv, cache = EXO_CSV_PATH, _exo_cache_path()
+    if not (os.path.exists(csv) and os.path.exists(cache)):
+        return None
+    try:
+        st = os.stat(csv)
+        import pickle
+        with open(cache, "rb") as f:
+            data = pickle.load(f)
+        if (not isinstance(data, dict)
+                or data.get("version") != _EXO_CACHE_VERSION
+                or data.get("csv_mtime") != int(st.st_mtime)
+                or data.get("csv_size") != st.st_size):
+            return None
+        bodies = data.get("bodies")
+        if not isinstance(bodies, list) or not bodies:
+            return None
+        if not all(getattr(b, "body_type", None) == "planet_exo" for b in bodies[:8]):
+            return None
+        return bodies, int(data.get("skipped_no_host", 0))
+    except Exception:
+        return None
+
+
+def _save_exo_cache(bodies: list, skipped: int):
+    """原子写入缓存（先写 .tmp 再 os.replace，中断不留半文件）。"""
+    try:
+        import pickle
+        st = os.stat(EXO_CSV_PATH)
+        data = {"version": _EXO_CACHE_VERSION,
+                "csv_mtime": int(st.st_mtime), "csv_size": st.st_size,
+                "bodies": bodies, "skipped_no_host": skipped}
+        tmp = _exo_cache_path() + ".tmp"
+        with open(tmp, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, _exo_cache_path())
+    except Exception:
+        pass
+
 
 def load_exoplanets() -> list:
     global EXO_SKIPPED_NO_HOST
     EXO_SKIPPED_NO_HOST = 0
     if os.path.exists(EXO_CSV_PATH):
+        cached = _try_load_exo_cache()
+        if cached is not None:
+            bodies, EXO_SKIPPED_NO_HOST = cached
+            return bodies
         try:
             bodies = _load_exo_csv(EXO_CSV_PATH)
             if bodies:
+                _save_exo_cache(bodies, EXO_SKIPPED_NO_HOST)
                 return bodies
         except Exception:
             pass   # CSV 损坏时回退内置子集，给出提示日志
@@ -941,24 +1004,40 @@ def load_hipparcos(mag_limit: float = HIPPARCOS_MAG_LIMIT):
     return data, float(dist_au.max())
 
 
-def load_all_bodies() -> tuple:
-    """加载全部天体：太阳系 + 天然卫星 + 系外行星 + 宿主恒星 + 黑洞
-    + 极端海外天体 + 近邻恒星 + 星际天体。
+def load_all_bodies_staged(progress_cb=None) -> tuple:
+    """加载全部天体（分阶段版本，供启动画面报告进度）。
 
-    返回 (bodies, stats)
+    progress_cb(percent, stage_msg) 在阶段边界被调用，进度依次为
+    5/10/25/40/65/80/95/100；传 None 时与 load_all_bodies 等价。
+    返回 (bodies, stats)。
     """
+
+    def _report(pct, msg):
+        if progress_cb is not None:
+            try:
+                progress_cb(pct, msg)
+            except Exception:
+                pass
+
+    _report(5, "正在加载太阳系天体…")
     solar = load_solar_system()
     parents = {b.name: b for b in solar}
+    _report(10, "太阳系天体就绪")
     moons = load_moons(parents)
     satellites = load_artificial_satellites(parents)
+    _report(25, "卫星数据就绪")
     exo = load_exoplanets()
+    _report(40, "系外行星就绪")
     host_stars = extract_host_stars(exo)
     blackholes = load_blackholes()
+    _report(65, "宿主恒星与黑洞就绪")
     etnos = load_etnos()
     interstellars = load_interstellar_objects()
+    _report(80, "外缘天体就绪")
     # 近邻恒星去重：跳过已作为系外行星宿主星收录的恒星
     existing_hosts = {hs.name for hs in host_stars}
     nearby_stars = load_nearby_stars(existing_hosts)
+    _report(95, "近邻恒星就绪")
     stats = {
         "solar_count": len(solar),
         "moon_count": len(moons),
@@ -972,8 +1051,18 @@ def load_all_bodies() -> tuple:
         "exo_skipped_no_host": EXO_SKIPPED_NO_HOST,
         "exo_source": "CSV 完整目录" if os.path.exists(EXO_CSV_PATH) else "内置精选子集",
     }
+    _report(100, "数据加载完成")
     return (solar + moons + satellites + exo + host_stars + blackholes + etnos
             + interstellars + nearby_stars), stats
+
+
+def load_all_bodies() -> tuple:
+    """加载全部天体：太阳系 + 天然卫星 + 系外行星 + 宿主恒星 + 黑洞
+    + 极端海外天体 + 近邻恒星 + 星际天体。
+
+    返回 (bodies, stats)
+    """
+    return load_all_bodies_staged(None)
 
 
 # ---------- 恒星系（系群）分组 ----------

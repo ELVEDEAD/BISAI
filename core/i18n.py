@@ -96,9 +96,9 @@ _T = {
     # ============================== 英语 ==============================
     "en": {
         # —— 通用 / 窗口 ——
-        "已知行星可视化": "Known Planets Visualization",
-        "已知行星可视化 —— 太阳系 + 系外行星": "Known Planets Visualization — Solar System + Exoplanets",
-        "已知行星可视化 —— 选择视图模式": "Known Planets Visualization — Select View Mode",
+        "Astrarium": "Astrarium",
+        "Astrarium —— 太阳系 + 系外行星": "Astrarium — Solar System + Exoplanets",
+        "Astrarium —— 选择视图模式": "Astrarium — Select View Mode",
         "设置": "Settings", "确定": "OK", "取消": "Cancel", "关闭": "Close",
         "显示": "Display", "交互": "Interaction", "外观": "Appearance",
         "引导": "Guide", "关于": "About",
@@ -229,12 +229,51 @@ _T = {
             "This app is now set to prefer the dedicated GPU. Please close and restart the program for it to take effect.",
         "已恢复由系统自动选择显卡，请重新启动程序后生效。":
             "Reverted to automatic GPU selection by the system. Please restart the program for it to take effect.",
+        "已切换显卡首选项，请关闭并重新启动程序后生效。":
+            "GPU preference changed. Please close and restart the program for it to take effect.",
+        # —— P2/P3 新增：字体 / 性能 / 大模型 ——
+        "保存": "Save", "已保存": "Saved", "测试连接": "Test connection",
+        "天文助手": "Astronomy Assistant", "助手": "Assistant",
+        "发送": "Send", "清空对话": "Clear chat", "就绪": "Ready",
+        "我": "Me", "系统": "System", "已回复": "Replied",
+        "自动适配": "Auto adapt",
+        "基于大模型 API（在「设置 → 大模型」中配置）":
+            "Powered by an LLM API (configure in Settings → LLM)",
+        "输入天文问题…（Ctrl+Enter 发送）":
+            "Ask an astronomy question… (Ctrl+Enter to send)",
+        "思考中…（正在调用大模型 API）": "Thinking… (calling the LLM API)",
+        "测试中…（正在请求大模型 API）": "Testing… (requesting the LLM API)",
+        "调用失败：": "Request failed: ",
+        "连接失败：": "Connection failed: ", "连接成功：": "Connected: ",
+        "请先填写 API Key": "Enter the API key first",
+        "未配置 API Key，请在「设置 → 大模型」中填写。":
+            "No API key configured. Enter it in Settings → LLM.",
+        "选择大模型服务商（OpenAI 兼容接口）":
+            "Choose an LLM provider (OpenAI-compatible API)",
+        "OpenAI 兼容的接口根地址（如 https://api.deepseek.com/v1）":
+            "OpenAI-compatible API base URL (e.g. https://api.deepseek.com/v1)",
+        "如 deepseek-chat / gpt-4o-mini": "e.g. deepseek-chat / gpt-4o-mini",
+        "仅保存在本机设置文件，不会上传":
+            "Stored only in the local settings file; never uploaded",
+        "图形 API 与着色器语言版本": "Graphics API and shader language version",
+        "当前实际用于渲染的图形设备": "Graphics device actually used for rendering",
+        "是否由 GPU 硬件加速渲染": "Whether rendering is GPU hardware-accelerated",
+        "手动选择本程序使用的显卡（Windows 图形设置，重启程序后生效）":
+            "Choose the GPU used by this app (Windows graphics settings; takes effect after restart)",
+        "拖动滑块调节界面文字大小（0.8～1.6 倍），即时生效":
+            "Drag the slider to adjust UI text size (0.8–1.6×), applied instantly",
+        "在显卡可承受范围内尽量多显示（目标 30 FPS 以上，上限 100 万）":
+            "Show as many bodies as the GPU can handle (target 30+ FPS, up to 1,000,000)",
+        "当前帧率与正在渲染的天体数量":
+            "Current frame rate and number of bodies being rendered",
+        "高性能：上限 100 万颗；均衡：50 万；省电：12 万":
+            "High: up to 1M; Balanced: 500K; Power-saving: 120K",
     },
     # ============================== 法语 ==============================
     "fr": {
-        "已知行星可视化": "Visualisation des planètes connues",
-        "已知行星可视化 —— 太阳系 + 系外行星": "Visualisation des planètes connues — Système solaire + exoplanètes",
-        "已知行星可视化 —— 选择视图模式": "Visualisation des planètes connues — Choisir le mode d'affichage",
+        "Astrarium": "Astrarium",
+        "Astrarium —— 太阳系 + 系外行星": "Astrarium — Système solaire + exoplanètes",
+        "Astrarium —— 选择视图模式": "Astrarium — Choisir le mode d'affichage",
         "设置": "Paramètres", "确定": "OK", "取消": "Annuler", "关闭": "Fermer",
         "显示": "Affichage", "交互": "Interaction", "外观": "Apparence",
         "引导": "Guide", "关于": "À propos",
@@ -361,12 +400,51 @@ _T = {
             "Cette application est désormais réglée pour privilégier le GPU dédié. Veuillez fermer puis redémarrer le programme pour que cela prenne effet.",
         "已恢复由系统自动选择显卡，请重新启动程序后生效。":
             "Sélection automatique du GPU par le système rétablie. Veuillez redémarrer le programme pour que cela prenne effet.",
+        "已切换显卡首选项，请关闭并重新启动程序后生效。":
+            "Préférence GPU modifiée. Veuillez fermer puis redémarrer le programme pour que cela prenne effet.",
+        # —— P2/P3 新增：字体 / 性能 / 大模型 ——
+        "保存": "Enregistrer", "已保存": "Enregistré", "测试连接": "Tester la connexion",
+        "天文助手": "Assistant d'astronomie", "助手": "Assistant",
+        "发送": "Envoyer", "清空对话": "Effacer la conversation", "就绪": "Prêt",
+        "我": "Moi", "系统": "Système", "已回复": "Répondu",
+        "自动适配": "Adaptation automatique",
+        "基于大模型 API（在「设置 → 大模型」中配置）":
+            "Basé sur une API de LLM (à configurer dans Paramètres → LLM)",
+        "输入天文问题…（Ctrl+Enter 发送）":
+            "Posez une question d'astronomie… (Ctrl+Entrée pour envoyer)",
+        "思考中…（正在调用大模型 API）": "Réflexion… (appel de l'API du LLM)",
+        "测试中…（正在请求大模型 API）": "Test en cours… (requête à l'API du LLM)",
+        "调用失败：": "Échec de l'appel : ",
+        "连接失败：": "Échec de connexion : ", "连接成功：": "Connexion réussie : ",
+        "请先填写 API Key": "Saisissez d'abord la clé API",
+        "未配置 API Key，请在「设置 → 大模型」中填写。":
+            "Aucune clé API configurée. Saisissez-la dans Paramètres → LLM.",
+        "选择大模型服务商（OpenAI 兼容接口）":
+            "Choisir un fournisseur de LLM (API compatible OpenAI)",
+        "OpenAI 兼容的接口根地址（如 https://api.deepseek.com/v1）":
+            "URL racine compatible OpenAI (ex. https://api.deepseek.com/v1)",
+        "如 deepseek-chat / gpt-4o-mini": "ex. deepseek-chat / gpt-4o-mini",
+        "仅保存在本机设置文件，不会上传":
+            "Stockée uniquement dans le fichier de paramètres local ; jamais envoyée",
+        "图形 API 与着色器语言版本": "API graphique et version du langage de shader",
+        "当前实际用于渲染的图形设备": "Périphérique graphique réellement utilisé pour le rendu",
+        "是否由 GPU 硬件加速渲染": "Si le rendu est accéléré par le matériel GPU",
+        "手动选择本程序使用的显卡（Windows 图形设置，重启程序后生效）":
+            "Choisir le GPU utilisé par cette application (paramètres graphiques Windows ; effet après redémarrage)",
+        "拖动滑块调节界面文字大小（0.8～1.6 倍），即时生效":
+            "Faites glisser le curseur pour ajuster la taille du texte de l'interface (0,8–1,6×), effet immédiat",
+        "在显卡可承受范围内尽量多显示（目标 30 FPS 以上，上限 100 万）":
+            "Afficher autant de corps que le GPU le permet (objectif 30 FPS ou plus, jusqu'à 1 000 000)",
+        "当前帧率与正在渲染的天体数量":
+            "Fréquence d'images actuelle et nombre de corps affichés",
+        "高性能：上限 100 万颗；均衡：50 万；省电：12 万":
+            "Élevé : jusqu'à 1 M ; Équilibré : 500 K ; Économe : 120 K",
     },
     # ============================== 俄语 ==============================
     "ru": {
-        "已知行星可视化": "Визуализация известных планет",
-        "已知行星可视化 —— 太阳系 + 系外行星": "Визуализация известных планет — Солнечная система + экзопланеты",
-        "已知行星可视化 —— 选择视图模式": "Визуализация известных планет — Выбор режима",
+        "Astrarium": "Astrarium",
+        "Astrarium —— 太阳系 + 系外行星": "Astrarium — Солнечная система + экзопланеты",
+        "Astrarium —— 选择视图模式": "Astrarium — Выбор режима",
         "设置": "Настройки", "确定": "ОК", "取消": "Отмена", "关闭": "Закрыть",
         "显示": "Отображение", "交互": "Управление", "外观": "Внешний вид",
         "引导": "Обучение", "关于": "О программе",
@@ -493,12 +571,51 @@ _T = {
             "Для этого приложения выбрана дискретная видеокарта. Закройте и снова запустите программу, чтобы изменения вступили в силу.",
         "已恢复由系统自动选择显卡，请重新启动程序后生效。":
             "Возвращён автоматический выбор видеокарты системой. Перезапустите программу, чтобы изменения вступили в силу.",
+        "已切换显卡首选项，请关闭并重新启动程序后生效。":
+            "Настройка видеокарты изменена. Закройте и снова запустите программу, чтобы изменения вступили в силу.",
+        # —— P2/P3 新增：字体 / 性能 / 大模型 ——
+        "保存": "Сохранить", "已保存": "Сохранено", "测试连接": "Проверить соединение",
+        "天文助手": "Астрономический помощник", "助手": "Помощник",
+        "发送": "Отправить", "清空对话": "Очистить чат", "就绪": "Готово",
+        "我": "Я", "系统": "Система", "已回复": "Ответ получен",
+        "自动适配": "Автоподбор",
+        "基于大模型 API（在「设置 → 大模型」中配置）":
+            "На базе API языковой модели (настраивается в разделе Настройки → LLM)",
+        "输入天文问题…（Ctrl+Enter 发送）":
+            "Задайте астрономический вопрос… (Ctrl+Enter — отправить)",
+        "思考中…（正在调用大模型 API）": "Размышление… (вызов API языковой модели)",
+        "测试中…（正在请求大模型 API）": "Тестирование… (запрос к API языковой модели)",
+        "调用失败：": "Ошибка запроса: ",
+        "连接失败：": "Не удалось подключиться: ", "连接成功：": "Подключено: ",
+        "请先填写 API Key": "Сначала введите ключ API",
+        "未配置 API Key，请在「设置 → 大模型」中填写。":
+            "Ключ API не настроен. Введите его в разделе Настройки → LLM.",
+        "选择大模型服务商（OpenAI 兼容接口）":
+            "Выберите провайдера языковой модели (API, совместимый с OpenAI)",
+        "OpenAI 兼容的接口根地址（如 https://api.deepseek.com/v1）":
+            "Базовый URL, совместимый с OpenAI (напр. https://api.deepseek.com/v1)",
+        "如 deepseek-chat / gpt-4o-mini": "напр. deepseek-chat / gpt-4o-mini",
+        "仅保存在本机设置文件，不会上传":
+            "Хранится только в локальном файле настроек и никуда не отправляется",
+        "图形 API 与着色器语言版本": "Версия графического API и языка шейдеров",
+        "当前实际用于渲染的图形设备": "Графическое устройство, фактически используемое для рендеринга",
+        "是否由 GPU 硬件加速渲染": "Используется ли аппаратное ускорение GPU при рендеринге",
+        "手动选择本程序使用的显卡（Windows 图形设置，重启程序后生效）":
+            "Выбор видеокарты для этого приложения (графические настройки Windows; действует после перезапуска)",
+        "拖动滑块调节界面文字大小（0.8～1.6 倍），即时生效":
+            "Перетащите ползунок, чтобы изменить размер текста интерфейса (0,8–1,6×), применяется сразу",
+        "在显卡可承受范围内尽量多显示（目标 30 FPS 以上，上限 100 万）":
+            "Показывать столько тел, сколько выдержит видеокарта (цель — от 30 FPS, до 1 000 000)",
+        "当前帧率与正在渲染的天体数量":
+            "Текущая частота кадров и число отображаемых небесных тел",
+        "高性能：上限 100 万颗；均衡：50 万；省电：12 万":
+            "Высокая: до 1 млн; Баланс: 500 тыс; Экономия: 120 тыс",
     },
     # ============================== 西班牙语 ==============================
     "es": {
-        "已知行星可视化": "Visualización de planetas conocidos",
-        "已知行星可视化 —— 太阳系 + 系外行星": "Visualización de planetas conocidos — Sistema solar + exoplanetas",
-        "已知行星可视化 —— 选择视图模式": "Visualización de planetas conocidos — Elegir modo de vista",
+        "Astrarium": "Astrarium",
+        "Astrarium —— 太阳系 + 系外行星": "Astrarium — Sistema solar + exoplanetas",
+        "Astrarium —— 选择视图模式": "Astrarium — Elegir modo de vista",
         "设置": "Ajustes", "确定": "Aceptar", "取消": "Cancelar", "关闭": "Cerrar",
         "显示": "Pantalla", "交互": "Interacción", "外观": "Apariencia",
         "引导": "Guía", "关于": "Acerca de",
@@ -625,12 +742,51 @@ _T = {
             "Esta aplicación ahora prefiere la GPU dedicada. Cierre y reinicie el programa para que surta efecto.",
         "已恢复由系统自动选择显卡，请重新启动程序后生效。":
             "Se ha restaurado la selección automática de GPU del sistema. Reinicie el programa para que surta efecto.",
+        "已切换显卡首选项，请关闭并重新启动程序后生效。":
+            "Preferencia de GPU cambiada. Cierre y reinicie el programa para que surta efecto.",
+        # —— P2/P3 新增：字体 / 性能 / 大模型 ——
+        "保存": "Guardar", "已保存": "Guardado", "测试连接": "Probar conexión",
+        "天文助手": "Asistente de astronomía", "助手": "Asistente",
+        "发送": "Enviar", "清空对话": "Borrar conversación", "就绪": "Listo",
+        "我": "Yo", "系统": "Sistema", "已回复": "Respondido",
+        "自动适配": "Adaptación automática",
+        "基于大模型 API（在「设置 → 大模型」中配置）":
+            "Basado en una API de LLM (se configura en Ajustes → LLM)",
+        "输入天文问题…（Ctrl+Enter 发送）":
+            "Haga una pregunta de astronomía… (Ctrl+Enter para enviar)",
+        "思考中…（正在调用大模型 API）": "Pensando… (llamando a la API del LLM)",
+        "测试中…（正在请求大模型 API）": "Probando… (solicitando la API del LLM)",
+        "调用失败：": "Fallo de la solicitud: ",
+        "连接失败：": "Conexión fallida: ", "连接成功：": "Conexión correcta: ",
+        "请先填写 API Key": "Introduzca primero la clave API",
+        "未配置 API Key，请在「设置 → 大模型」中填写。":
+            "No hay clave API configurada. Introdúzcala en Ajustes → LLM.",
+        "选择大模型服务商（OpenAI 兼容接口）":
+            "Elegir un proveedor de LLM (API compatible con OpenAI)",
+        "OpenAI 兼容的接口根地址（如 https://api.deepseek.com/v1）":
+            "URL raíz compatible con OpenAI (p. ej. https://api.deepseek.com/v1)",
+        "如 deepseek-chat / gpt-4o-mini": "p. ej. deepseek-chat / gpt-4o-mini",
+        "仅保存在本机设置文件，不会上传":
+            "Se guarda solo en el archivo local de ajustes; nunca se sube",
+        "图形 API 与着色器语言版本": "API de gráficos y versión del lenguaje de sombreado",
+        "当前实际用于渲染的图形设备": "Dispositivo gráfico realmente usado para el renderizado",
+        "是否由 GPU 硬件加速渲染": "Si el renderizado está acelerado por el hardware de la GPU",
+        "手动选择本程序使用的显卡（Windows 图形设置，重启程序后生效）":
+            "Elegir la GPU que usa esta aplicación (ajustes de gráficos de Windows; surte efecto tras reiniciar)",
+        "拖动滑块调节界面文字大小（0.8～1.6 倍），即时生效":
+            "Arrastre el control para ajustar el tamaño del texto de la interfaz (0,8–1,6×), efecto inmediato",
+        "在显卡可承受范围内尽量多显示（目标 30 FPS 以上，上限 100 万）":
+            "Mostrar tantos cuerpos como soporte la GPU (objetivo de 30 FPS o más, hasta 1 000 000)",
+        "当前帧率与正在渲染的天体数量":
+            "Frecuencia de imagen actual y número de cuerpos en renderizado",
+        "高性能：上限 100 万颗；均衡：50 万；省电：12 万":
+            "Alto: hasta 1 M; Equilibrado: 500 K; Ahorro: 120 K",
     },
     # ============================== 阿拉伯语 ==============================
     "ar": {
-        "已知行星可视化": "تصوّر الكواكب المعروفة",
-        "已知行星可视化 —— 太阳系 + 系外行星": "تصوّر الكواكب المعروفة — النظام الشمسي + الكواكب الخارجية",
-        "已知行星可视化 —— 选择视图模式": "تصوّر الكواكب المعروفة — اختر وضع العرض",
+        "Astrarium": "Astrarium",
+        "Astrarium —— 太阳系 + 系外行星": "Astrarium — النظام الشمسي + الكواكب الخارجية",
+        "Astrarium —— 选择视图模式": "Astrarium — اختر وضع العرض",
         "设置": "الإعدادات", "确定": "موافق", "取消": "إلغاء", "关闭": "إغلاق",
         "显示": "العرض", "交互": "التفاعل", "外观": "المظهر",
         "引导": "الإرشاد", "关于": "حول",
@@ -758,5 +914,44 @@ _T = {
             "تم ضبط هذا التطبيق لتفضيل بطاقة الرسوميات المنفصلة. يُرجى إغلاق البرنامج وإعادة تشغيله ليصبح الإعداد سارياً.",
         "已恢复由系统自动选择显卡，请重新启动程序后生效。":
             "تمت استعادة الاختيار التلقائي لبطاقة الرسوميات من النظام. يُرجى إعادة تشغيل البرنامج ليصبح الإعداد سارياً.",
+        "已切换显卡首选项，请关闭并重新启动程序后生效。":
+            "تم تغيير تفضيل بطاقة الرسوميات. يُرجى إغلاق البرنامج وإعادة تشغيله ليصبح الإعداد سارياً.",
+        # —— P2/P3 新增：字体 / 性能 / 大模型 ——
+        "保存": "حفظ", "已保存": "تم الحفظ", "测试连接": "اختبار الاتصال",
+        "天文助手": "مساعد الفلك", "助手": "مساعد",
+        "发送": "إرسال", "清空对话": "مسح المحادثة", "就绪": "جاهز",
+        "我": "أنا", "系统": "النظام", "已回复": "تم الرد",
+        "自动适配": "تكيّف تلقائي",
+        "基于大模型 API（在「设置 → 大模型」中配置）":
+            "مدعوم بواجهة نموذج لغوي كبير (يُضبط في الإعدادات ← النموذج اللغوي)",
+        "输入天文问题…（Ctrl+Enter 发送）":
+            "اطرح سؤالاً فلكياً… (Ctrl+Enter للإرسال)",
+        "思考中…（正在调用大模型 API）": "جارٍ التفكير… (استدعاء واجهة النموذج اللغوي)",
+        "测试中…（正在请求大模型 API）": "جارٍ الاختبار… (طلب واجهة النموذج اللغوي)",
+        "调用失败：": "فشل الاستدعاء: ",
+        "连接失败：": "فشل الاتصال: ", "连接成功：": "نجح الاتصال: ",
+        "请先填写 API Key": "أدخل مفتاح API أولاً",
+        "未配置 API Key，请在「设置 → 大模型」中填写。":
+            "لم يتم تكوين مفتاح API. أدخله في الإعدادات ← النموذج اللغوي.",
+        "选择大模型服务商（OpenAI 兼容接口）":
+            "اختر مزوّد النموذج اللغوي (واجهة متوافقة مع OpenAI)",
+        "OpenAI 兼容的接口根地址（如 https://api.deepseek.com/v1）":
+            "العنوان الأساسي المتوافق مع OpenAI (مثل https://api.deepseek.com/v1)",
+        "如 deepseek-chat / gpt-4o-mini": "مثل deepseek-chat / gpt-4o-mini",
+        "仅保存在本机设置文件，不会上传":
+            "يُحفظ في ملف الإعدادات المحلي فقط ولا يُرسل إلى أي جهة",
+        "图形 API 与着色器语言版本": "واجهة الرسوميات وإصدار لغة التظليل",
+        "当前实际用于渲染的图形设备": "جهاز الرسوميات المستخدم فعلياً للعرض",
+        "是否由 GPU 硬件加速渲染": "ما إذا كان العرض مسرّعاً بعتاد بطاقة الرسوميات",
+        "手动选择本程序使用的显卡（Windows 图形设置，重启程序后生效）":
+            "اختيار بطاقة الرسوميات لهذا التطبيق (إعدادات الرسوميات في ويندوز؛ يسري بعد إعادة التشغيل)",
+        "拖动滑块调节界面文字大小（0.8～1.6 倍），即时生效":
+            "اسحب المنزلق لضبط حجم نص الواجهة (0.8–1.6×)، يسري فوراً",
+        "在显卡可承受范围内尽量多显示（目标 30 FPS 以上，上限 100 万）":
+            "عرض أكبر عدد تتحمله بطاقة الرسوميات (الهدف 30 إطاراً في الثانية أو أكثر، حتى 1 000 000)",
+        "当前帧率与正在渲染的天体数量":
+            "معدل الإطارات الحالي وعدد الأجرام السماوية المعروضة",
+        "高性能：上限 100 万颗；均衡：50 万；省电：12 万":
+            "عالي: حتى مليون؛ متوازن: 500 ألف؛ موفّر: 120 ألف",
     },
 }
