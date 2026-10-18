@@ -68,9 +68,12 @@ _CARDINALS = [(0.0, "N"), (45.0, "NE"), (90.0, "E"), (135.0, "SE"),
 
 
 def _lerp3(a, b, t):
-    return (a[0] + (b[0] - a[0]) * t,
-            a[1] + (b[1] - a[1]) * t,
-            a[2] + (b[2] - a[2]) * t)
+    """颜色线性插值 → int 元组。必须返回 int：QColor(int,int,int,int)
+    不接受 float（太阳高度角落在锚点之间时插值出 float，曾致地表视角
+    切换城市后地平雾线绘制崩溃——上海/北京经纬度恰触发插值分支）。"""
+    return (int(round(a[0] + (b[0] - a[0]) * t)),
+            int(round(a[1] + (b[1] - a[1]) * t)),
+            int(round(a[2] + (b[2] - a[2]) * t)))
 
 
 def _sky_colors(sun_alt):

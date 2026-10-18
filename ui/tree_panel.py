@@ -61,6 +61,7 @@ class TreePanel(QWidget):
             for m in g.moons:
                 self._name_to_group[m.name] = g
         self.setMinimumWidth(220)
+        self._vanished = set()                   # 太阳演化中被吞噬的天体名（隐藏）
         self._build_ui()
         self._populate()
 
@@ -267,6 +268,9 @@ class TreePanel(QWidget):
         def visit(item, force=False):
             body = item.data(0, ROLE_BODY)
             group = item.data(0, ROLE_GROUP)
+            if body is not None and body.name in self._vanished:
+                item.setHidden(True)        # 已被吞噬：搜索也不显示
+                return False
             hit = False
             if body is not None:
                 hit = (text in body.name.lower()
@@ -292,6 +296,10 @@ class TreePanel(QWidget):
 
     def _restore_all(self):
         def visit(item):
+            body = item.data(0, ROLE_BODY)
+            if body is not None and body.name in self._vanished:
+                item.setHidden(True)        # 已被吞噬：恢复全部时仍隐藏
+                return
             item.setHidden(False)
             for j in range(item.childCount()):
                 visit(item.child(j))
@@ -302,6 +310,32 @@ class TreePanel(QWidget):
         self._set_full_count()
 
     # ---------- 外部调用 ----------
+    def set_vanished_names(self, names):
+        """太阳演化联动：当前时间已被吞噬的天体名列表。
+
+        非空 → 对应条目从树上隐藏（用户「调时间到吞噬前」才重新出现）；
+        列表变化时恢复不再被吞的条目。与搜索过滤正交（两层 hidden
+        状态叠加，_filter/_restore_all 均跳过 vanished 条目）。
+        """
+        new = set(names or ())
+        if new == self._vanished:
+            return
+        self._vanished = new
+        if self.edit_search.text().strip():
+            self._filter(self.edit_search.text())   # 搜索态：重跑过滤（含排除）
+        else:
+            def visit(item):
+                body = item.data(0, ROLE_BODY)
+                if body is not None:
+                    hidden = body.name in self._vanished
+                    item.setHidden(hidden)
+                    if hidden:
+                        return          # 行星被吞：挂其下的卫星一并隐藏
+                for j in range(item.childCount()):
+                    visit(item.child(j))
+            for i in range(self.tree.topLevelItemCount()):
+                visit(self.tree.topLevelItem(i))
+
     def select_body(self, name):
         """在树中选中并滚动到指定天体（懒加载系群会先展开）"""
         group = self._name_to_group.get(name)

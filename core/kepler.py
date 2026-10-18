@@ -118,10 +118,15 @@ def position_at_time(a0: float, da: float, e0: float, de: float,
 
 
 def sample_orbit(a: float, e: float, i_deg: float, Omega_deg: float,
-                 omega_deg: float, n_points: int = 256) -> np.ndarray:
+                 omega_deg: float, n_points: int = 256,
+                 closed: bool = False) -> np.ndarray:
     """
     沿椭圆轨道均匀采样 n_points 个点（偏近点角均匀），返回 (n,3) 数组（AU）
     用于绘制完整轨道线——形状由真实轨道根数决定（客观轨迹）
+
+    closed=False：返回 n_points 个点（起点=终点相位 0，不重复）；
+    closed=True ：末尾追加首点（共 n_points+1 个），轨道线严格闭合，
+                  供 LINE_STRIP 类绘制使用（GL 线段索引相邻对即天然闭环）。
     """
     E = np.linspace(0.0, 2.0 * math.pi, n_points, endpoint=False)
     xv = a * (np.cos(E) - e)
@@ -137,7 +142,10 @@ def sample_orbit(a: float, e: float, i_deg: float, Omega_deg: float,
     x = (cosw * cosO - sinw * sinO * cosi) * xv + (-sinw * cosO - cosw * sinO * cosi) * yv
     y = (cosw * sinO + sinw * cosO * cosi) * xv + (-sinw * sinO + cosw * cosO * cosi) * yv
     z = (sinw * sini) * xv + (cosw * sini) * yv
-    return np.stack([x, y, z], axis=1)
+    pts = np.stack([x, y, z], axis=1)
+    if closed:
+        pts = np.vstack([pts, pts[:1]])
+    return pts
 
 
 def velocity_at_time(a: float, e: float, i_deg: float, Omega_deg: float,

@@ -135,6 +135,53 @@ SCENES = [
         extra_note="真实比例下系外行星极小（标记点显示），"
                    "但轨道线和宿主星位置清晰可见。缩放可见不同距离的系外行星系统。",
     ),
+    TeachingScene(
+        name="太阳死亡之旅（物理演化）",
+        description="按 Schröder & Connon Smith (2008) 模型推演太阳命运：\n"
+                    "主序 → 红巨星分支（半径膨胀至 1.2 AU）→ 氦闪 →\n"
+                    "AGB → 行星状星云 → 白矮星。\n"
+                    "水星金星被吞噬，行星轨道随质量损失外移。",
+        focus_body="太阳",
+        speed_index=12,        # 1 亿年/秒
+        azimuth_deg=15,
+        elevation_deg=25,
+        distance=4.0,
+        show_grid=False,
+        extra_note="观测要点：太阳颜色随黑体温度变红、半径吞没内行星轨道；"
+                   "吞噬瞬间太阳闪光；时间轴「演化」下拉可跳转关键节点；"
+                   "HUD 实时显示 R/L/T/M。地球默认「逃逸」命运"
+                   "（core/sun_evolution.py 的 EARTH_FATE 可切换「吞噬」模式）。",
+    ),
+    TeachingScene(
+        name="潮汐锁定：月球一面朝向地球",
+        description="月球自转周期 = 公转周期（27.32 天），\n"
+                    "因此永远以同一面朝向地球。\n"
+                    "潮汐摩擦使月球每年外移 3.82 cm（激光测距实测），\n"
+                    "地球自转每世纪减慢约 2 ms。",
+        focus_body="月球",
+        speed_index=4,         # 1 周/秒 ≈ 4 秒一个公转周期
+        azimuth_deg=20,
+        elevation_deg=15,
+        distance=0.02,
+        extra_note="锁定跟随月球，观察月球表面斑纹始终朝向地球。"
+                   "对照：木卫一受轨道共振挤压潮汐加热（火山活动最活跃的天体）。",
+    ),
+    TeachingScene(
+        name="洛希极限与潮汐撕裂",
+        description="天体进入主星流体洛希极限（d = 2.44·R·(ρ_p/ρ_s)^{1/3}）\n"
+                    "时被潮汐力撕碎。\n"
+                    "选中天体右键 →「潮汐撕裂演示」，观察轨道旋进与碎裂链条\n"
+                    "（参考苏梅克-列维 9 号被木星撕裂成 21 块）。",
+        focus_body="月球",
+        speed_index=3,
+        azimuth_deg=35,
+        elevation_deg=20,
+        distance=0.05,
+        extra_note="演示步骤：选中月球（或其他卫星/行星）→ 右键「潮汐撕裂演示」→ "
+                   "天体沿轨道旋进，进入地球流体洛希极限（约 2.9 倍地球半径）"
+                   "后被撕成碎片链。右键还可切换「洛希极限圈」显示"
+                   "（橙=刚体极限，红=流体极限）。",
+    ),
 ]
 
 

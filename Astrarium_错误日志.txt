@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1395, in paintGL
+    self._draw_pn_shell(f)
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1666, in _draw_pn_shell
+    rings.append(circ[:, 0:1] * u[None, :] * r_au
+ValueError: operands could not be broadcast together with shapes (96,2) (96,3) 
+
+------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1395, in paintGL
+    self._draw_pn_shell(f)
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1666, in _draw_pn_shell
+    rings.append(circ[:, 0:1] * u[None, :] * r_au
+ValueError: operands could not be broadcast together with shapes (96,2) (96,3) 
+
+------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1395, in paintGL
+    self._draw_pn_shell(f)
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1666, in _draw_pn_shell
+    rings.append(circ[:, 0:1] * u[None, :] * r_au
+ValueError: operands could not be broadcast together with shapes (96,2) (96,3) 
+
+------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1395, in paintGL
+    self._draw_pn_shell(f)
+  File "D:\比赛文件\Astrarium\scene\viewport.py", line 1666, in _draw_pn_shell
+    rings.append(circ[:, 0:1] * u[None, :] * r_au
+ValueError: operands could not be broadcast together with shapes (96,2) (96,3) 
+
+------------------------------------------------------------

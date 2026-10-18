@@ -369,11 +369,16 @@ def _search_transit(obs, tgt, jd0, jd1) -> list:
         d_sun = float(np.linalg.norm(_pos(obs, jd_min)))
         sun_rad = math.degrees(math.asin(min(1.0, SUN_RADIUS_KM / (d_sun * AU_KM))))
         if smin < sun_rad:
+            # 精度提示按行星区分：水星轨道快（~48 km/s），1 角分黄经误差
+            # ≈ 5 小时；金星凌日对星历误差更敏感（2012 实测偏差 ~10.5 小时）
+            acc = ("基于 JPL 近似星历，时刻误差约 ±3 小时，仅供参考"
+                   if tgt.name == "水星"
+                   else "基于 JPL 近似星历，时刻误差约 ±0.5 天，仅供参考")
             out.append(Phenomenon(
                 KIND_TRANSIT, jd_min, f"{tgt.name}凌日",
                 f"最小视角距 {smin:.4f}° < 太阳视半径 {sun_rad:.4f}°",
                 (tgt.name,),
-                "候选事件：受 JPL 近似星历精度限制，具体时刻与可见性需复核"))
+                "候选事件：" + acc + "，具体时刻与可见性需复核"))
     return out
 
 

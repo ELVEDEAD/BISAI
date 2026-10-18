@@ -42,7 +42,8 @@ from ui.lazy_tabs import LazyTabManager
 from ui.guide import GuideDialog, should_show_guide, mark_guide_completed
 from ui.teaching_scenes import TeachingSceneDialog
 from ui.settings_dialog import SettingsDialog
-from core.time_system import SimulationClock
+from core.time_system import jd_to_ymd
+from core.sun_evolution import jd_from_age
 from core import app_settings
 
 
@@ -407,6 +408,14 @@ class MainWindow(QMainWindow):
         self.act_teach.triggered.connect(self._show_teaching)
         tb.addAction(self.act_teach)
 
+        # 演化事件日志（太阳吞噬/撕裂/阶段转换）
+        self.act_evolog = QAction(tr("演化日志"), self)
+        self.act_evolog.setToolTip(
+            "查看太阳演化事件日志：行星吞噬、潮汐撕裂、阶段转换\n"
+            "（配合时间轴「演化」节点跳转或 1 亿年/秒倍速观看）")
+        self.act_evolog.triggered.connect(self._show_evolution_log)
+        tb.addAction(self.act_evolog)
+
         # 新手引导
         self.act_guide = QAction(tr("新手引导"), self)
         self.act_guide.triggered.connect(self._show_guide)
@@ -441,6 +450,8 @@ class MainWindow(QMainWindow):
         self.viewport.compareToggled.connect(self._on_compare_toggle)
         # 视口锁定跟随状态 → 同步工具栏复选框
         self.viewport.followChanged.connect(self._on_follow_changed)
+        # 太阳演化：被吞噬天体 → 左侧树同步隐藏（调回吞噬前自动恢复）
+        self.viewport.engulfChanged.connect(self.tree_panel.set_vanished_names)
         # 时间轴跳转 → 视口刷新
         self.timeline.dateChanged.connect(self._on_date_jump)
         # 天象事件点击 → 跳转时间轴 + 聚焦相关天体
@@ -838,6 +849,59 @@ class MainWindow(QMainWindow):
         dlg = TeachingSceneDialog(
             self.viewport, self._lazy.ensure("compare"), self.timeline,
             self.tree_panel, self.detail_panel, self)
+        dlg.exec_()
+
+    def _show_evolution_log(self):
+        """太阳演化事件日志：吞噬 / 潮汐撕裂 / 阶段转换的完整记录"""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("太阳演化事件日志"))
+        dlg.resize(560, 420)
+        layout = QVBoxLayout(dlg)
+        text = QTextEdit()
+        text.setReadOnly(True)
+        layout.addWidget(text)
+        btn_row = QHBoxLayout()
+        btn_refresh = QPushButton(tr("刷新"))
+        btn_clear = QPushButton(tr("清空日志"))
+        btn_close = QPushButton(tr("关闭"))
+        btn_row.addWidget(btn_refresh)
+        btn_row.addWidget(btn_clear)
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_close)
+        layout.addLayout(btn_row)
+
+        def render():
+            events = list(self.viewport.evolution_events)
+            if not events:
+                text.setHtml(
+                    "<p style='color:#888;'>暂无事件。</p>"
+                    "<p style='color:#888;'>触发方式：时间轴「演化」下拉跳转到红巨星 / AGB 等节点，"
+                    "或用 1 亿年/秒以上倍速快进，观察行星吞噬与阶段转换；"
+                    "右键菜单可手动启动「潮汐撕裂演示」。</p>")
+                return
+            rows = []
+            for _t, age_gyr, ev_text in events:
+                # 太阳年龄 → 模拟儒略日 → 日历日期（纯数学换算，支持超大年份）
+                y, m, d, _hh, _mm, _ss = jd_to_ymd(jd_from_age(age_gyr))
+                rows.append(
+                    f"<tr><td style='color:#e8b96a; white-space:nowrap;'>"
+                    f"{y:,}-{m:02d}-{d:02d}</td>"
+                    f"<td style='color:#9ab8e0; white-space:nowrap;'>"
+                    f"{age_gyr:.2f} Gyr</td>"
+                    f"<td>{ev_text}</td></tr>")
+            text.setHtml(
+                "<h3 style='color:#e87d0d;'>太阳演化事件日志</h3>"
+                "<table cellspacing='6'>"
+                "<tr><th style='color:#666;'>模拟日期</th>"
+                "<th style='color:#666;'>太阳年龄</th>"
+                "<th style='color:#666;'>事件</th></tr>"
+                + "".join(rows) + "</table>")
+
+        render()
+        btn_refresh.clicked.connect(render)
+        btn_clear.clicked.connect(
+            lambda: (self.viewport.evolution_events.clear(), render()))
+        btn_close.clicked.connect(dlg.accept)
         dlg.exec_()
 
     def _show_guide(self):
