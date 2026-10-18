@@ -19,6 +19,9 @@ from core.constants import (PARSEC_AU, OBLIQUITY_J2000_DEG, DEG2RAD, J2000_JD,
                             M_EARTH_KG)
 from core.kepler import position_at_time, elements_to_position, solve_kepler, velocity_at_time
 from core.time_system import datetime_to_jd
+from core.sun_evolution import (SUN_NOW_AGE_GYR, orbit_expansion,
+                                sun_state as _sun_state,
+                                age_from_jd as sun_age_from_jd)
 from data.solar_system import (SOLAR_PLANETS, SUN, SolarElements, MOONS, POLES,
                                ROTATION)
 from data.exoplanets_builtin import BUILTIN_EXOPLANETS
@@ -171,9 +174,22 @@ class Body:
     # ---------- 周期 ----------
     @property
     def period(self) -> float:
-        """公转周期（天）；太阳系行星由半长轴推算（开普勒第三定律），系外行星用实测值"""
+        """公转周期（天）。
+
+        太阳系行星/矮行星优先用 JPL 根数的平均运动反推（M_dot = L_dot -
+        varpi_dot，度/世纪，含行星间摄动长期项），与 position_at_jd 的相位
+        推进完全自洽（按周期跳跃后位置闭合）；无根数时退回开普勒第三定律
+        （P = 365.25·a^1.5，纯二体）。系外行星用实测 period_days。
+        """
         if self.period_days:
             return self.period_days
+        if self.body_type in ("planet_solar", "dwarf"):
+            el = self.elements
+            if el is not None and el.L_dot is not None \
+                    and el.varpi_dot is not None:
+                n_deg_per_century = el.L_dot - el.varpi_dot
+                if n_deg_per_century > 1e-9:
+                    return 36525.0 * 360.0 / n_deg_per_century
         if self.a_au and self.body_type in ("planet_solar", "dwarf", "etno"):
             return 365.25 * self.a_au ** 1.5
         return None
@@ -258,9 +274,29 @@ class Body:
         if self.body_type in ("planet_solar", "dwarf", "etno"):
             T = (jd - J2000_JD) / 36525.0
             el = self.elements
-            return position_at_time(el.a, el.a_dot, el.e, el.e_dot, el.i, el.i_dot,
-                                    el.L, el.L_dot, el.varpi, el.varpi_dot,
-                                    el.Omega, el.Omega_dot, T)
+            # JPL 根数的世纪漂移项（a_dot/e_dot/i_dot…）仅适用 1800–2050
+            # （±2.5 世纪）。亿年尺度线性外推会让根数爆炸：木星
+            # a_dot×7.9e7 cty ≈ -9200 AU（负半长轴）、土星 e → 约 -1.5 万，
+            # 行星本体被甩到数千 AU 外（轨道线用原始根数反而正常）。
+            # 因此几何漂移全部钳到 JPL 有效期，仅平黄经 L 保留真实 T
+            # （相位角无界增长经 %360 安全，行星继续公转）。
+            T_drift = max(-2.5, min(2.5, T))
+            a = el.a + el.a_dot * T_drift
+            e = el.e + el.e_dot * T_drift
+            i = el.i + el.i_dot * T_drift
+            varpi = el.varpi + el.varpi_dot * T_drift
+            Omega = el.Omega + el.Omega_dot * T_drift
+            L = el.L + el.L_dot * T
+            # 太阳演化质量损失 → 轨道角动量守恒外移（a ∝ M^-k）。
+            # 仅深未来（现在 +5000 万年后）启用，正常时间漫游（±万年）不受影响。
+            # 近似级别：JPL 根数本身仅适用 1800–2050，亿年尺度外推为可视化近似。
+            age = sun_age_from_jd(jd)
+            if age > SUN_NOW_AGE_GYR + 0.05:
+                st = _sun_state(age)
+                if st.mass_solar < 1.0:
+                    a *= orbit_expansion(st.mass_solar, self.name)
+            return position_at_time(a, 0.0, e, 0.0, i, 0.0, L, 0.0,
+                                    varpi, 0.0, Omega, 0.0, 0.0)
         if self.body_type == "moon":
             # 天然卫星：母行星位置 + 相对母行星的开普勒轨道
             base = (self.parent.position_at_jd(jd)

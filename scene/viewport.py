@@ -30,6 +30,12 @@ from core.time_system import SimulationClock
 from core.constants import (AU_KM, J2000_JD, format_distance, scale_tier_name,
                             GRADE_DESCRIPTION, format_light_time)
 from core.kepler import exo_relative_positions_vec
+from core.sun_evolution import (SUN_NOW_AGE_GYR, age_from_jd, blackbody_rgb,
+                                orbit_expansion, sun_state,
+                                max_radius_au_between, SOLAR_RADIUS_AU)
+from core.star_evolution import star_state_vec, rgb_duration_gyr, PHASE_MS
+from core.physics import roche_limit_km, roche_limit_fluid_km, mean_density_gcm3
+from core.constants import R_SUN_KM, M_SUN_PER_EARTH
 from core import render_settings
 from scene.textures import texture_kind
 from data.solar_system import EPHEMERIS_VALID_YEARS, RINGS, POLES, saturn_ring_alpha
@@ -520,6 +526,7 @@ class Viewport(QOpenGLWidget):
     focusChanged = pyqtSignal(str)         # 焦点变化
     followChanged = pyqtSignal(bool)       # 锁定跟随状态变化
     planetCountChanged = pyqtSignal(int)   # 当前渲染天体数量变化（动态适配上报）
+    engulfChanged = pyqtSignal(list)       # 被吞噬天体名列表变化（树/面板同步）
 
     def __init__(self, parent=None):
         fmt = QSurfaceFormat()
@@ -621,6 +628,30 @@ class Viewport(QOpenGLWidget):
         self._ring_tpl = {}                   # {行星名: (环模板(K,3), 环面基u, 环面基v, 透明度)}
         self._moon_orbits = {}                # {卫星名: (相对母行星轨道点(N,3), 颜色)}
         self._sat_orbits = {}                 # {人造卫星名: (相对地球轨道点(N,3), 颜色)}
+
+        # ---------- 太阳物理演化 ----------
+        self._sun_state_cache = None          # 当前帧太阳状态（SunState）
+        self._evo_active = False              # 演化激活（深未来）
+        self._engulfed = {}                 # 被太阳吞噬的天体 {索引: 吞噬时刻 jd}
+        self._vanished_emitted = []         # 上次 engulfChanged 发出的名列表（去重）
+        self._engulf_dirty = False          # 本帧吞噬状态有变化（待重建/发信号）
+        self._evo_last_jd = None            # 上帧 jd（检测时间跳转→先重算位置再判吞噬）
+        # —— 系外宿主恒星演化（star_evolution 模型） ——
+        self._star_evo_idx = None           # 参与演化的宿主恒星索引（load 时构建）
+        self._star_evo_last_jd = None       # 上次演化计算的 jd（限频 + 推进检测）
+        self._star_evo_last_t = 0.0
+        self._star_evo_applied = False      # 已应用演化半径/颜色（主序恢复用）
+        self._star_evo_lum_idx = None       # 演化中恒星的索引（emis 光度调节）
+        self._star_evo_lum = None
+        self._shattered = {}                  # 被潮汐撕裂的天体名 → (碎片点(N,3), t0)
+        self._shatter_hidden = set()          # 本体已隐藏的撕裂天体索引
+        self.evolution_events = []            # [(jd, 太阳年龄Gyr, 事件文本)]
+        self._engulf_flash = 0.0              # 吞噬闪光时刻（perf_counter）
+        self._orbit_scale_applied = 1.0       # 轨道线已应用的轨道外移因子
+        self._sun_mass_applied = 1.0          # 轨道线重建时用的太阳质量（M☉）
+        self._last_orbit_rebuild = 0.0        # 轨道线限频重建时刻
+        self.show_roche = False               # 洛希极限圈显示开关（选中天体）
+        self._demo_shatter = None             # 潮汐撕裂演示状态
         self._axis_basis = {}                 # {行星名: (极轴n, 赤道面基e1, 赤道面基e2)}
         self._proj = None
         self._view = None
@@ -792,6 +823,44 @@ class Viewport(QOpenGLWidget):
         self._is_blackhole = is_blackhole
         self._is_exo = is_exo
 
+        # —— 系外宿主恒星演化数组（core/star_evolution.py 演化模型） ——
+        # 参与演化：host_star 且有质量数据、0.5–8 M☉（更大质量需超新星模型，
+        # 超出演示范围，保持主序）。年龄缺省按与太阳同龄（4.58 Gyr）。
+        star_slot = {}
+        s_idx, s_mass, s_age0, s_r0, s_teff0 = [], [], [], [], []
+        for i in range(n):
+            b = self.bodies[i]
+            if b.body_type != "host_star":
+                continue
+            m_s = b.host_mass_solar
+            if not m_s or not (0.5 <= m_s <= 8.0):
+                continue
+            star_slot[b.name] = len(s_idx)
+            s_idx.append(i)
+            s_mass.append(m_s)
+            s_age0.append(b.host_age if b.host_age else SUN_NOW_AGE_GYR)
+            s_r0.append(b.host_radius_solar if b.host_radius_solar else 1.0)
+            s_teff0.append(b.host_teff if b.host_teff else 5772.0)
+        self._star_evo_idx = np.array(s_idx, dtype=np.int64)
+        self._star_evo_mass = np.array(s_mass, dtype=np.float64)
+        self._star_evo_age0 = np.array(s_age0, dtype=np.float64)
+        self._star_evo_r0 = np.array(s_r0, dtype=np.float64)
+        self._star_evo_teff0 = np.array(s_teff0, dtype=np.float64)
+        # 系外行星 → 宿主演化槽位（-1 = 宿主不参与演化）
+        self._exo_star_slot = (np.full(len(self._exo_idx), -1, dtype=np.int64)
+                               if len(self._exo_idx)
+                               else np.zeros(0, dtype=np.int64))
+        for k in range(len(self._exo_idx)):
+            host = self.bodies[int(self._exo_idx[k])].host
+            self._exo_star_slot[k] = star_slot.get(host, -1)
+        # 原值备份：演化恢复主序时写回（半径影响标记点尺寸，颜色影响渲染）
+        self._radius_km0 = radius.copy()
+        self._colors_arr0 = colors.copy()
+        # 演化基准时刻 = 数据加载完成时的仿真时刻：首次时间跳转即可
+        # 启用区间吞噬判定（跳过 RGB 窗口也不漏吞）
+        self._evo_last_jd = self.clock.jd
+        self._star_evo_last_jd = self.clock.jd
+
         # 程序化贴图：纹理类别 + 自转极轴（世界系单位向量）+ 自转周期（天，带符号）
         tex = np.zeros(n)
         pole = np.zeros((n, 3))
@@ -919,13 +988,21 @@ class Viewport(QOpenGLWidget):
         return xv[:, None] * u[None, :] + yv[:, None] * v[None, :]
 
     def _rebuild_orbits(self):
-        """预采样全部轨道（真实轨道根数，一次 VBO；应用轨迹筛选）"""
+        """预采样全部轨道（真实轨道根数，一次 VBO；应用轨迹筛选与轨道外移）"""
         chunks = []
         idx_chunks = []
         offset = 0
         self._orbit_ranges = {}
         y_lo, y_hi = self.filter_year
+        # 太阳质量损失 → 轨道外移：按天体名逐个计算（地球 escape 模式
+        # k=1.2，其余 k=1.0），与 position_at_jd 的本体位置保持一致
+        m_sun = getattr(self, "_sun_mass_applied", 1.0)
+        from core.sun_evolution import orbit_expansion as _oe
         for b in self.bodies:
+            bi = self._index_of.get(b.name) if self._index_of else None
+            if bi is not None and (bi in self._engulfed or
+                                   bi in self._shatter_hidden):
+                continue   # 被吞噬/撕裂的天体不再绘制轨道线
             if b.body_type in ("star", "host_star", "blackhole", "moon",
                                "nearby_star", "interstellar"):
                 continue
@@ -939,12 +1016,13 @@ class Viewport(QOpenGLWidget):
             from core.kepler import sample_orbit
             if is_solar:
                 el = b.elements
-                pts = sample_orbit(el.a, el.e, el.i, el.Omega,
-                                   el.varpi - el.Omega, 256)
+                fac = (_oe(m_sun, b.name) if m_sun < 1.0 else 1.0)
+                pts = sample_orbit(el.a * fac, el.e, el.i, el.Omega,
+                                   el.varpi - el.Omega, 256, closed=True)
             elif b.a_au:
                 e = b.e if b.e is not None else 0.0
                 i = b.incl_deg if b.incl_deg is not None else 0.0
-                pts = sample_orbit(b.a_au, e, i, 0.0, 0.0, 128)
+                pts = sample_orbit(b.a_au, e, i, 0.0, 0.0, 128, closed=True)
             else:
                 continue
             # 系外行星轨道挂在宿主星上
@@ -953,9 +1031,11 @@ class Viewport(QOpenGLWidget):
             col = np.tile(np.array(b.color, dtype=np.float64), (len(pts), 1))
             seg = np.hstack([pts, col])
             chunks.append(seg)
-            idx = np.arange(offset, offset + len(pts))
+            # closed=True 时数组末点 == 首点，相邻索引对即天然闭环
+            # （段数 = len(pts)-1，无零长退化段）
+            idx = np.arange(offset, offset + len(pts) - 1)
             idx_chunks.append(np.column_stack([
-                idx, np.roll(idx, -1)]).ravel())
+                idx, idx + 1]).ravel())
             self._orbit_ranges[b.name] = (offset, len(pts))
             offset += len(pts)
         if chunks:
@@ -1368,6 +1448,9 @@ class Viewport(QOpenGLWidget):
             self._draw_sat_orbits(f)
         self._draw_belt(f)
         self._draw_trails(f)
+        self._draw_shatter(f)
+        self._draw_pn_shell(f)
+        self._draw_roche_limits(f)
         self._draw_compare_link(f)
         self._draw_measure_link(f)
         self._draw_spheres(f)
@@ -1429,6 +1512,467 @@ class Viewport(QOpenGLWidget):
         px = MARKER_REF_PX * (r / MARKER_REF_KM) ** MARKER_EXP
         return max(MARKER_MIN_PX, min(px, MARKER_MAX_PX))
 
+    # ---------- 太阳物理演化 ----------
+    def _update_sun_evolution(self, jd: float):
+        """每帧更新太阳演化状态：半径/光度/温度/质量 + 吞噬判定 + 轨道外移联动
+
+        吞噬判定（机制一）：太阳光球半径 ≥ 天体日心距 → 吞噬（隐藏本体 + 闪光 + 事件）。
+        天体位置由 loader.position_at_jd 按质量损失外移（机制二），与膨胀速率竞争。
+        本帧使用上一帧位置缓存，误差一帧（演化时间尺度下可忽略）。
+        """
+        jd_prev = self._evo_last_jd
+        jd_jump = (jd_prev is None or abs(jd - jd_prev) > 365.0)
+        self._evo_last_jd = jd
+        age = age_from_jd(jd)
+        st = sun_state(age)
+        self._sun_state_cache = st
+        self._evo_active = age > SUN_NOW_AGE_GYR + 0.05
+        # —— 吞噬的时间一致性 ——
+        # 吞噬是时间轴上的事件（记录发生时刻 jd0）：当前时间早于 jd0 →
+        # 天体尚未被吞（跳回过去则恢复显示）；晚于 jd0 → 永久消失——
+        # 即使太阳已收缩成白矮星也不复活（物质已并入恒星/抛入行星状星云）。
+        # （旧实现按「距离 > 光球半径」复活，白矮星期光球极小导致全部错误复活）
+        if self._engulfed:
+            revived = [i for i, jd0 in self._engulfed.items()
+                       if jd < jd0 - 0.5]
+            if revived:
+                for i in revived:
+                    del self._engulfed[i]
+                self._engulf_dirty = True
+        # 系外宿主恒星演化（含其行星的吞噬判定；内部限频 + 主序恢复）
+        self._update_stellar_evolution(jd)
+        if not self._evo_active:
+            # 跳回现在/过去：被撕裂天体一并恢复（演示性质，无时刻记录）
+            if self._shatter_hidden and self.clock.speed < 0:
+                self._shatter_hidden.clear()
+            if self._engulf_dirty:
+                self._engulf_dirty = False
+                self._rebuild_orbits()
+                self._emit_engulf_changed()
+            return
+        sun_r_au = st.radius_au
+        # 前进跳转（亿年轴节点）：区间 [上一帧, 本帧] 内光球最大半径——
+        # 直接跳到白矮星期会越过 RGB tip 时刻，曾入光球的行星仍应被吞。
+        # 倒退跳转不启用（回到吞噬时刻之前 = 天体尚在，由 revived 逻辑恢复）。
+        r_judge = sun_r_au
+        if jd_jump and jd_prev is not None and jd > jd_prev + 0.5:
+            r_judge = max(sun_r_au,
+                          max_radius_au_between(age_from_jd(jd_prev),
+                                                age_from_jd(jd)))
+        if (self._body_pos is not None and r_judge > SOLAR_RADIUS_AU * 1.5
+                and self._near_idx is not None):
+            # 时间跳转（亿年轴节点/手动拖拽）：上一帧位置缓存对应跳转前的时刻
+            # （主序轨道，未含质量损失外移），直接判定会把贴边掠过的天体误吞
+            # （地球主序 1.0 AU vs 外移后 1.21 AU）。先按当前 jd 重算再判定。
+            if jd_jump:
+                self._refresh_near_positions(jd)
+            idxs = np.asarray(self._near_idx, dtype=np.int64)
+            d = np.linalg.norm(self._body_pos[idxs], axis=1)
+            for i in idxs[d < r_judge * 0.98]:
+                if i in self._engulfed or i in self._shatter_hidden:
+                    continue
+                b = self.bodies[i]
+                if b.body_type == "star":
+                    continue
+                self._engulfed[i] = jd
+                # 卫星随母行星一起坠入光球（贴边掠过时卫星可能差一点点
+                # 距离，母行星消失后卫星不应孤悬轨道）
+                for j in self._near_idx:
+                    m = self.bodies[j]
+                    if (m.body_type in ("moon", "satellite")
+                            and j not in self._engulfed
+                            and getattr(m.parent, "name", None) == b.name):
+                        self._engulfed[j] = jd
+                self._engulf_flash = _time.perf_counter()
+                self._log_evolution_event(f"「{b.name}」被膨胀的太阳吞噬（{st.phase}）")
+                self._engulf_dirty = True
+                # 跟随/选中指向被吞天体时立即解除（避免跟随幽灵位置）
+                if self.follow_body is not None \
+                        and getattr(self.follow_body, "name", "") == b.name:
+                    self._release_follow()
+        if self._shatter_hidden and self.clock.speed < 0:
+            self._shatter_hidden.clear()   # 倒放时恢复被撕裂天体本体
+        if self._engulf_dirty:
+            self._engulf_dirty = False
+            self._rebuild_orbits()          # 吞噬的天体不再画轨道线
+            self._emit_engulf_changed()
+        # 轨道外移因子变化 → 限频重建轨道线（贴合外移后的行星位置）。
+        # 存太阳质量而非单一因子：地球（escape k=1.2）与一般行星（k=1.0）
+        # 外移倍数不同，_rebuild_orbits 按天体名逐个计算。
+        scale = orbit_expansion(st.mass_solar) if st.mass_solar < 1.0 else 1.0
+        now = _time.perf_counter()
+        if abs(scale - self._orbit_scale_applied) > 0.01:
+            if now - self._last_orbit_rebuild > 0.5:
+                self._orbit_scale_applied = scale
+                self._sun_mass_applied = (st.mass_solar
+                                          if st.mass_solar < 1.0 else 1.0)
+                self._last_orbit_rebuild = now
+                self._rebuild_orbits()
+
+    def _refresh_near_positions(self, jd: float):
+        """时间跳转后按当前时刻重算近距天体位置（含轨道外移，供吞噬判定）"""
+        if self._near_idx is None or not self.bodies:
+            return
+        pos = (self._body_pos.copy() if self._body_pos is not None
+               else np.zeros((len(self.bodies), 3), dtype=np.float64))
+        for i in self._near_idx:
+            pos[i] = self.bodies[i].position_at_jd(jd)
+        self._body_pos = pos
+
+    def _log_evolution_event(self, text: str):
+        self.evolution_events.append((_time.perf_counter(),
+                                      age_from_jd(self.clock.jd), text))
+        if len(self.evolution_events) > 400:
+            del self.evolution_events[:200]
+
+    def _emit_engulf_changed(self):
+        """吞噬状态变化 → 通知外部（左侧树同步隐藏/恢复）"""
+        names = [self.bodies[i].name for i in self._engulfed]
+        if names != self._vanished_emitted:
+            self._vanished_emitted = list(names)
+            self.engulfChanged.emit(list(names))
+
+    def _update_stellar_evolution(self, jd: float):
+        """系外宿主恒星演化：半径/颜色/光度随仿真时间变化 + 吞噬其行星。
+
+        时间推进对全部恒星一致（Δ = age_from_jd(jd) − 太阳当前年龄），
+        各自出生时间不同由观测年龄 st_age 区分——快进数十亿年后大质量
+        宿主星先变红巨星，其行星落入膨胀光球即被吞噬（与太阳吞噬同一
+        `_engulfed` 字典 / engulfChanged 信号 / 左侧树同步通道）。
+        演化模型为演示级标度关系（core/star_evolution.py）。
+        限频 0.5 s 且仅时间推进时重算；跳回主序恢复原值。
+        """
+        if self._star_evo_idx is None or not len(self._star_evo_idx):
+            return
+        now = _time.perf_counter()
+        if (self._star_evo_last_jd is not None
+                and abs(jd - self._star_evo_last_jd) < 1.0
+                and now - self._star_evo_last_t < 0.5):
+            return
+        star_prev = self._star_evo_last_jd
+        self._star_evo_last_jd = jd
+        self._star_evo_last_t = now
+        delta = age_from_jd(jd) - SUN_NOW_AGE_GYR
+        if abs(delta) <= 0.05:
+            # 主序（含跳回现在）：恢复原半径/颜色/亮度
+            if self._star_evo_applied:
+                self._radius_km[self._star_evo_idx] = \
+                    self._radius_km0[self._star_evo_idx]
+                self._colors_arr[self._star_evo_idx] = \
+                    self._colors_arr0[self._star_evo_idx]
+                self._star_evo_lum_idx = None
+                self._star_evo_lum = None
+                self._star_evo_applied = False
+            return
+        ages = self._star_evo_age0 + delta
+        r_s, teff, lum, _mass, code = star_state_vec(
+            self._star_evo_mass, ages, self._star_evo_r0, self._star_evo_teff0)
+        # 仅对演化中的恒星应用（主序保持观测值/原调色）
+        evolved = code != PHASE_MS
+        idx_ev = self._star_evo_idx[evolved]
+        if len(idx_ev):
+            self._radius_km[idx_ev] = r_s[evolved] * R_SUN_KM
+            cols = np.empty((int(evolved.sum()), 3), dtype=np.float64)
+            for k, tk in enumerate(teff[evolved]):
+                cols[k] = blackbody_rgb(float(tk))
+            self._colors_arr[idx_ev] = cols
+            self._star_evo_lum_idx = idx_ev
+            self._star_evo_lum = lum[evolved]
+        else:
+            self._star_evo_lum_idx = None
+            self._star_evo_lum = None
+        self._star_evo_applied = True
+        # —— 吞噬判定：行星-宿主距离 < 演化光球半径（与太阳判定同阈值） ——
+        if self._body_pos is None or not len(self._exo_idx):
+            return
+        slot = self._exo_star_slot
+        if not np.any(slot >= 0):
+            return
+        r_star_au = r_s * R_SUN_KM / AU_KM
+        # 前进跳转：区间内光球最大半径（演化期相交 → AGB tip）+ 行星近点距
+        # （轨道相位在区间内不确定，取最近可能距离）；直接跳到白矮星期
+        # 也会越过红巨星阶段，曾入光球的行星仍应被吞。
+        if (star_prev is not None and jd > star_prev + 0.5
+                and abs(jd - star_prev) > 365.0):
+            delta_prev = age_from_jd(star_prev) - SUN_NOW_AGE_GYR
+            a_lo = self._star_evo_age0 + min(delta_prev, delta)
+            a_hi = self._star_evo_age0 + max(delta_prev, delta)
+            t_ms = 10.0 * self._star_evo_mass ** -2.5
+            t_end = t_ms + rgb_duration_gyr(self._star_evo_mass) + 0.2
+            inter = (a_hi >= t_ms) & (a_lo <= t_end)
+            r_star_au = np.maximum(
+                r_star_au,
+                np.where(inter, 1.15 * 256.0
+                         * self._star_evo_mass ** 0.2, 0.0)
+                * R_SUN_KM / AU_KM)
+            d = self._exo_a * (1.0 - self._exo_e)   # 近点距
+        else:
+            M = (2.0 * math.pi / np.maximum(self._exo_period, 1e-9)) \
+                * (jd - J2000_JD)
+            rel = exo_relative_positions_vec(self._exo_a, self._exo_e,
+                                             self._exo_i, M)
+            d = np.linalg.norm(rel, axis=1)
+        safe = np.where(slot >= 0, slot, 0)
+        hit = (slot >= 0) & (d < r_star_au[safe] * 0.98)
+        newly = [int(self._exo_idx[k]) for k in np.nonzero(hit)[0]
+                 if int(self._exo_idx[k]) not in self._engulfed]
+        if not newly:
+            return
+        # 按宿主分组记录事件（批量吞噬时避免日志刷屏）
+        by_host = {}
+        for i in newly:
+            b = self.bodies[i]
+            self._engulfed[i] = jd
+            by_host.setdefault(b.host, []).append(b.name)
+        for host, names in by_host.items():
+            shown = "、".join(names[:8]) + ("…" if len(names) > 8 else "")
+            self._log_evolution_event(f"「{host}」演化膨胀吞噬行星：{shown}")
+        self._engulf_dirty = True
+        if (self.follow_body is not None
+                and getattr(self.follow_body, "name", "") in
+                {self.bodies[i].name for i in newly}):
+            self._release_follow()
+
+    def start_shatter_demo(self):
+        """潮汐撕裂演示：选中天体沿轨道旋进（τ ∝ (R/d)^6 的指数近似），
+
+        进入 primary 流体洛希极限后被撕成碎片链（参考苏梅克-列维 9 号碎裂形态）。
+        演示性质：轨道衰减速率参数化，非逐项潮汐积分。
+        """
+        name = self.selected_name
+        if not name or self._index_of is None:
+            return False
+        i = self._index_of.get(name)
+        if i is None:
+            return False
+        b = self.bodies[i]
+        if b.body_type in ("star", "host_star", "blackhole", "planet_exo",
+                           "nearby_star", "interstellar"):
+            return False
+        self._demo_shatter = {"name": name, "factor": 1.0}
+        self._log_evolution_event(f"潮汐撕裂演示开始：「{b.name}」轨道旋进中")
+        self._mark_active(30.0)
+        return True
+
+    def _update_demo_shatter(self, pos):
+        """演示轨道旋进：相对 primary 的位置向心收缩，直到进入流体洛希极限"""
+        demo = getattr(self, "_demo_shatter", None)
+        if not demo or self._body_pos is None:
+            return
+        i = self._index_of.get(demo["name"])
+        if i is None:
+            self._demo_shatter = None
+            return
+        b = self.bodies[i]
+        if b.body_type in ("moon", "satellite") and b.parent is not None:
+            p_i = self._index_of.get(b.parent.name)
+            base = pos[p_i] if p_i is not None else np.zeros(3)
+            r_p_km = b.parent.radius_km or 6371.0
+            m_p_earth = b.parent.mass_earth or 1.0
+        else:
+            base = np.zeros(3)
+            st = self._sun_state_cache
+            if st is not None and self._evo_active:
+                r_p_km = R_SUN_KM * st.radius_solar
+                m_p_earth = M_SUN_PER_EARTH * st.mass_solar
+            else:
+                r_p_km = R_SUN_KM
+                m_p_earth = M_SUN_PER_EARTH
+        rel = self._body_pos[i] - base
+        demo["factor"] *= 0.9985      # 轨道衰减（演示参数化）
+        new_rel = rel * demo["factor"]
+        rho_p = mean_density_gcm3(r_p_km, m_p_earth)
+        rho_s = mean_density_gcm3(b.radius_km, b.mass_earth) if \
+            (b.radius_km and b.mass_earth) else 3.0
+        roche_au = roche_limit_fluid_km(r_p_km, rho_p, rho_s) / AU_KM
+        if float(np.linalg.norm(new_rel)) <= roche_au:
+            self._trigger_shatter(i, b, base)
+            self._demo_shatter = None
+        else:
+            pos[i] = base + new_rel
+
+    def _trigger_shatter(self, i, b, base):
+        """潮汐撕裂：本体隐藏，沿轨道散布碎片链（径向抖动模拟解体）"""
+        rng = np.random.default_rng(7)
+        if b.body_type in ("moon", "satellite"):
+            pts = (self._moon_orbits.get(b.name) or
+                   self._sat_orbits.get(b.name) or ([np.zeros((0, 3))]))[0]
+        else:
+            rng_or = self._orbit_ranges.get(b.name)
+            pts = (self._orbit_data[rng_or[0]:rng_or[0] + rng_or[1], :3]
+                   if rng_or is not None else None)
+        if pts is None or len(pts) < 8:
+            self._engulfed[i] = self.clock.jd
+            self._log_evolution_event(f"「{b.name}」被潮汐力瓦解")
+            return
+        n = 48
+        sel = pts[::max(1, len(pts) // n)][:n]
+        spread = 0.06 + 0.02 * rng.random((len(sel), 1))
+        radial = sel / np.maximum(np.linalg.norm(sel, axis=1,
+                                                 keepdims=True), 1e-9)
+        frag = sel + radial * spread * np.linalg.norm(sel, axis=1,
+                                                      keepdims=True)
+        self._shattered[b.name] = (frag + base[None, :],
+                                   _time.perf_counter())
+        self._shatter_hidden.add(i)
+        self._log_evolution_event(
+            f"「{b.name}」进入流体洛希极限，被潮汐力撕裂成 {len(sel)} 块碎片链")
+
+    def _draw_shatter(self, f):
+        """碎片链绘制（撕裂后 8 秒渐隐；红橙色，模拟炽热碎片）"""
+        if not self._shattered:
+            return
+        prog = self._prog_line
+        if prog is None:
+            return
+        now = _time.perf_counter()
+        f.glDisable(f.GL_DEPTH_TEST)
+        prog.bind()
+        prog.setUniformValue("u_mvp", self._qmat(self._mvp_rel))
+        stride = 6 * 4
+        self._vbo_trail.bind()
+        for name in list(self._shattered.keys()):
+            pts, t0 = self._shattered[name]
+            dt = now - t0
+            if dt > 8.0:
+                del self._shattered[name]
+                continue
+            alpha = 0.85 * (1.0 - dt / 8.0)
+            arr = np.asarray(pts) - self._eye[None, :]
+            col = np.tile(np.array([1.0, 0.45, 0.25]), (len(arr), 1))
+            data = np.hstack([arr, col]).astype(np.float32)
+            _b = data.tobytes()
+            self._vbo_trail.allocate(len(_b))
+            self._vbo_trail.write(0, _b, len(_b))
+            prog.setAttributeBuffer(0, 0x1406, 0, 3, stride)
+            prog.setAttributeBuffer(1, 0x1406, 12, 3, stride)
+            prog.enableAttributeArray(0)
+            prog.enableAttributeArray(1)
+            prog.setUniformValue("u_alpha", float(alpha))
+            f.glDrawArrays(f.GL_LINE_STRIP, 0, len(data))
+        self._vbo_trail.release()
+        prog.release()
+        f.glEnable(f.GL_DEPTH_TEST)
+
+    def _draw_pn_shell(self, f):
+        """行星状星云壳（可视化近似）：AGB 抛射后 0.3 Gyr 内膨胀的半透明壳
+
+        以三个正交圆环近似球壳（OIII 青绿色）；膨胀速度为数十 km/s 量级的
+        可视化缩放，非严格辐射流体力学。
+        """
+        st = self._sun_state_cache
+        if st is None or not (12.40 <= st.age_gyr <= 12.70):
+            return
+        prog = self._prog_line
+        if prog is None:
+            return
+        w = (st.age_gyr - 12.40) / 0.30
+        r_au = 1.0 + w * 45.0
+        alpha = 0.5 * (1.0 - w)
+        if alpha <= 0.01:
+            return
+        ang = np.linspace(0.0, 2.0 * math.pi, 96, endpoint=False)
+        circ = np.stack([np.cos(ang), np.sin(ang)], axis=1)
+        # 三个正交平面（xy / yz / xz）的大圆近似球壳；u、v 必须同为 3 维，
+        # 否则 (96,2)+(96,3) 广播失败（白矮星跳转崩溃根因）
+        _U = np.array([1.0, 0.0, 0.0])
+        _V = np.array([0.0, 1.0, 0.0])
+        _Z = np.array([0.0, 0.0, 1.0])
+        rings = []
+        for u, v in ((_U, _V), (_V, _Z), (_U, _Z)):
+            rings.append(circ[:, 0:1] * u[None, :] * r_au
+                         + circ[:, 1:2] * v[None, :] * r_au)
+        pts = np.vstack(rings) - self._eye[None, :]
+        col = np.tile(np.array([0.35, 0.9, 0.8]), (len(pts), 1))
+        data = np.hstack([pts, col]).astype(np.float32)
+        _b = data.tobytes()
+        f.glDisable(f.GL_DEPTH_TEST)
+        prog.bind()
+        prog.setUniformValue("u_mvp", self._qmat(self._mvp_rel))
+        prog.setUniformValue("u_alpha", float(alpha))
+        stride = 6 * 4
+        self._vbo_trail.bind()
+        self._vbo_trail.allocate(len(_b))
+        self._vbo_trail.write(0, _b, len(_b))
+        prog.setAttributeBuffer(0, 0x1406, 0, 3, stride)
+        prog.setAttributeBuffer(1, 0x1406, 12, 3, stride)
+        prog.enableAttributeArray(0)
+        prog.enableAttributeArray(1)
+        for k in range(3):
+            f.glDrawArrays(f.GL_LINE_LOOP, k * 96, 96)
+        self._vbo_trail.release()
+        prog.release()
+        f.glEnable(f.GL_DEPTH_TEST)
+
+    def _draw_roche_limits(self, f):
+        """洛希极限圈（选中天体相对其 primary）：刚体（橙）与流体（红）
+
+        行星 → 以太阳为 primary（演化时半径/质量实时联动，红巨星阶段圈外扩）；
+        卫星 → 以母行星为 primary。
+        公式：刚体 d = 1.26·R·(ρ_p/ρ_s)^{1/3}，流体 d = 2.44·R·(ρ_p/ρ_s)^{1/3}。
+        """
+        if not self.show_roche or self._body_pos is None:
+            return
+        name = self.selected_name
+        if not name or self._index_of is None:
+            return
+        i = self._index_of.get(name)
+        if i is None:
+            return
+        b = self.bodies[i]
+        st = self._sun_state_cache
+        if b.body_type in ("planet_solar", "dwarf", "etno"):
+            center = np.zeros(3)
+            if st is not None and self._evo_active:
+                r_p_km = R_SUN_KM * st.radius_solar
+                m_p_earth = M_SUN_PER_EARTH * st.mass_solar
+            else:
+                r_p_km = R_SUN_KM
+                m_p_earth = M_SUN_PER_EARTH
+        elif b.body_type in ("moon", "satellite") and b.parent is not None:
+            p_i = self._index_of.get(b.parent.name)
+            if p_i is None:
+                return
+            center = self._body_pos[p_i]
+            r_p_km = b.parent.radius_km or 6371.0
+            m_p_earth = b.parent.mass_earth or 1.0
+        else:
+            return
+        rho_p = mean_density_gcm3(r_p_km, m_p_earth)
+        rho_s = (mean_density_gcm3(b.radius_km, b.mass_earth)
+                 if (b.radius_km and b.mass_earth) else 3.0)
+        d_rigid = roche_limit_km(r_p_km, rho_p, rho_s) / AU_KM
+        d_fluid = roche_limit_fluid_km(r_p_km, rho_p, rho_s) / AU_KM
+        ang = np.linspace(0.0, 2.0 * math.pi, 128, endpoint=False)
+        prog = self._prog_line
+        if prog is None:
+            return
+        f.glDisable(f.GL_DEPTH_TEST)
+        prog.bind()
+        prog.setUniformValue("u_mvp", self._qmat(self._mvp_rel))
+        stride = 6 * 4
+        self._vbo_trail.bind()
+        for d_au, col in ((d_rigid, (1.0, 0.72, 0.2)),
+                          (d_fluid, (1.0, 0.35, 0.30))):
+            pts = np.stack([center[0] + d_au * np.cos(ang),
+                            center[1] + d_au * np.sin(ang),
+                            np.full(len(ang), center[2])], axis=1)
+            rel = pts - self._eye[None, :]
+            colors = np.tile(np.array(col), (len(rel), 1))
+            data = np.hstack([rel, colors]).astype(np.float32)
+            _b = data.tobytes()
+            self._vbo_trail.allocate(len(_b))
+            self._vbo_trail.write(0, _b, len(_b))
+            prog.setAttributeBuffer(0, 0x1406, 0, 3, stride)
+            prog.setAttributeBuffer(1, 0x1406, 12, 3, stride)
+            prog.enableAttributeArray(0)
+            prog.enableAttributeArray(1)
+            prog.setUniformValue("u_alpha", 0.75)
+            f.glDrawArrays(f.GL_LINE_LOOP, 0, len(data))
+        self._vbo_trail.release()
+        prog.release()
+        f.glEnable(f.GL_DEPTH_TEST)
+
     def _update_body_positions(self, f):
         """CPU double 精度计算天体位置 → 相对相机坐标 float32（浮点原点）
 
@@ -1442,6 +1986,11 @@ class Viewport(QOpenGLWidget):
         """
         n = len(self.bodies)
         jd = self.clock.jd
+        self._update_sun_evolution(jd)
+        if self._near_idx is None:
+            # 数据尚未 load_bodies（启动/模式切换时序）：本帧无物可画。
+            # _body_pos 保持 None，各绘制函数按各自守卫跳过。
+            return
         pos = np.empty((n, 3), dtype=np.float64)
 
         # 近处天体（太阳系 + 卫星）：每帧解析计算（数量少，开销可忽略）
@@ -1465,6 +2014,7 @@ class Viewport(QOpenGLWidget):
         elif len(self._far_idx):
             pos[self._far_idx] = self._far_pos
         self._far_tick += 1
+        self._update_demo_shatter(pos)
         self._body_pos = pos
         rel = pos - self._eye[None, :]
 
@@ -1476,6 +2026,11 @@ class Viewport(QOpenGLWidget):
         np.maximum(dist, 1e-12, out=dist)
         has_r = ~np.isnan(self._radius_km)
         r_au = np.where(has_r, self._radius_km / AU_KM, 0.0)
+        # 太阳演化：半径按当前阶段缩放（红巨星膨胀 / 白矮星收缩）
+        sun_i = self._index_of.get("太阳")
+        st = self._sun_state_cache
+        if self._evo_active and sun_i is not None and st is not None:
+            r_au[sun_i] *= st.radius_solar
         diams = np.where(has_r, r_au / dist * px_per_rad * 2.0, 0.0)
         floors = self._marker_floor_vec(self._radius_km)
         # 系外行星（秒差距级距离）：远看一律细小光点，不按半径放大成圆球；
@@ -1518,6 +2073,15 @@ class Viewport(QOpenGLWidget):
                 sphere_flag[self._sat_idx] = False
                 rvis[self._sat_idx] = 0.0
 
+        # 演化隐藏：被吞噬 / 被潮汐撕裂的天体不再绘制本体
+        if self._evo_active:
+            hidden = list(self._engulfed) + list(self._shatter_hidden)
+            if hidden:
+                hidden = np.asarray(hidden, dtype=np.int64)
+                sizes[hidden] = 0.0
+                sphere_flag[hidden] = False
+                rvis[hidden] = 0.0
+
         # —— 光源方向（球面光照用；系外行星以宿主星为光源，其余以太阳/原点）——
         src = np.where(self._exo_host_has[:, None], self._exo_host, 0.0)
         light_src = np.zeros((n, 3))
@@ -1529,13 +2093,27 @@ class Viewport(QOpenGLWidget):
                           np.array([1.0, 0.0, 0.0]))
 
         # —— 自发光强度（分级亮度，避免宿主恒星"满屏炸弹"）——
-        # 太阳：1.0（全亮）
+        # 太阳：1.0（全亮）；演化时随光度调节（红巨星更亮、白矮星变暗）
         # 宿主恒星：0.18（微亮，刚能看出是恒星但不刺眼）
         # 其余：0.0（漫反射光照）
         emis = np.where(self._is_solar_star, 1.0,
                  np.where(self._is_host_star, 0.18, 0.0))
+        # 宿主恒星演化：自发光随演化光度调节（红巨星/AGB 显著增亮，白矮星变暗）
+        if self._star_evo_lum_idx is not None and len(self._star_evo_lum_idx):
+            emis[self._star_evo_lum_idx] = np.clip(
+                self._star_evo_lum ** 0.12, 0.18, 3.0)
+        if self._evo_active and sun_i is not None and st is not None:
+            emis[sun_i] = float(np.clip(st.luminosity_solar ** 0.12, 0.30, 3.0))
+            # 吞噬闪光：事件后 2 秒内附加渐隐脉冲
+            dt_flash = _time.perf_counter() - self._engulf_flash
+            if 0.0 <= dt_flash < 2.0:
+                emis[sun_i] += 1.6 * (1.0 - dt_flash / 2.0)
 
         colors = self._colors_arr
+        # 太阳演化：颜色随黑体温度变化（红巨星偏红、白矮星偏蓝）
+        if self._evo_active and sun_i is not None and st is not None:
+            colors = colors.copy()
+            colors[sun_i] = blackbody_rgb(st.teff_k)
         self._sphere_idx = np.nonzero(sphere_flag)[0]
         self._body_rvis = rvis
         self._body_diam = diams
@@ -1672,28 +2250,77 @@ class Viewport(QOpenGLWidget):
         prog.release()
 
     def _record_trail(self):
-        """历史尾迹记录（选中/对比天体，随时间生长；约每 0.15s 采样一点）"""
-        now = _time.perf_counter()
-        if now - self._trail_last < 0.15:
-            return
-        self._trail_last = now
+        """历史尾迹记录（选中/对比天体）。
+
+        低倍速：约每 0.15s 真实时间采样一点，尾迹随时间自然生长；
+        高倍速：0.15s 内天体已转过数圈，逐帧采样会退化为穿心的乱直线，
+        改为按预采样轨道几何直接生成 0.75 圈平滑弧（_trail_geo_arc）。
+        """
         watch = set(self.compare_names or [])
         if self.selected_name:
             watch.add(self.selected_name)
-        if not watch:
+        if not watch or self._body_pos is None:
             return
+        speed = abs(self.clock.speed)
+        name_to_idx = {b.name: i for i, b in enumerate(self.bodies)}
+        now = _time.perf_counter()
         for name in list(watch):
+            b = next((x for x in self.bodies if x.name == name), None)
+            if b is None:
+                continue
+            period = b.period or 0.0   # period property：含开普勒第三定律 fallback（行星无 period_days 字段）
+            if period > 0 and speed * 0.15 > period / 600.0:
+                self._trail_geo_arc(name, b, name_to_idx)
+                continue
+            if now - self._trail_last < 0.15:
+                continue
+            self._trail_last = now
             if name not in self._trails:
                 self._trails[name] = []
             lst = self._trails[name]
-            b = next((x for x in self.bodies if x.name == name), None)
-            if b is None or self._body_pos is None:
-                continue
-            i = list(map(lambda x: x.name, self.bodies)).index(name)
-            lst.append(self._body_pos[i].copy())
+            lst.append(self._body_pos[name_to_idx[name]].copy())
             cap = 20000 if self.trail_mode == "persist" else 600   # 保留上限（persist 保留完整历史）
-            while len(lst) > cap:
-                lst.pop(0)
+            if len(lst) > cap:
+                del lst[:len(lst) - cap]
+
+    def _trail_geo_arc(self, name, b, name_to_idx):
+        """高倍速尾迹：沿预采样轨道几何回溯 0.75 圈，生成平滑弧线。
+
+        点序为「旧 → 新」（末点贴当前天体位置），与逐帧采样尾迹方向一致；
+        倒放时取反方向；逆行轨道（倾角 > 90°）采样序与运动序相反，需翻转。
+        """
+        center = np.zeros(3)
+        if b.body_type == "moon" and name in self._moon_orbits:
+            pts = self._moon_orbits[name][0]
+            p_idx = name_to_idx.get(getattr(b.parent, "name", ""), None)
+            if p_idx is None:
+                return
+            center = self._body_pos[p_idx]
+        elif b.body_type == "satellite" and name in self._sat_orbits:
+            pts = self._sat_orbits[name][0]
+            p_idx = name_to_idx.get(getattr(b.parent, "name", ""), None)
+            if p_idx is None:
+                return
+            center = self._body_pos[p_idx]
+        else:
+            rng = self._orbit_ranges.get(name)
+            if rng is None:
+                return
+            off, ln = rng
+            pts = self._orbit_data[off:off + ln, :3].astype(np.float64)
+        cur = self._body_pos[name_to_idx[name]] - center
+        k = int(np.argmin(((pts - cur) ** 2).sum(axis=1)))
+        n_arc = min(96, max(len(pts) // 2, 8))
+        sgn = -1 if self.clock.direction > 0 else 1
+        incl = getattr(b, "incl_deg", None)
+        if incl is None:
+            el = getattr(b, "elements", None)
+            incl = getattr(el, "i", 0.0) if el is not None else 0.0
+        if (incl or 0.0) > 90.0:
+            sgn = -sgn
+        back = np.arange(n_arc - 1, -1, -1)
+        idxs = (k + sgn * back) % len(pts)
+        self._trails[name] = list(pts[idxs] + center)
 
     def _draw_trails(self, f):
         """尾迹绘制（真实三维曲线，随视角正确变换）
@@ -2066,6 +2693,9 @@ class Viewport(QOpenGLWidget):
             pi = self._index_of.get(b.parent_name)
             if pi is None or pi not in near:
                 continue
+            if i in self._engulfed or i in self._shatter_hidden \
+                    or pi in self._engulfed or pi in self._shatter_hidden:
+                continue   # 卫星或母行星已被吞噬/撕裂
             base = (self._body_pos[pi] - self._eye)[None, :]
             # 闭合折线 → 显式线段对（GL_LINES 每两个顶点成一段，避免折线被打断成虚线）
             closed = np.vstack([pts, pts[:1]])
@@ -2299,6 +2929,8 @@ class Viewport(QOpenGLWidget):
             return None
         best, best_d = None, radius_px
         for i, b in enumerate(self.bodies):
+            if i in self._engulfed or i in self._shatter_hidden:
+                continue
             pr = self.project(self._body_pos[i])
             if pr is None:
                 continue
@@ -2347,6 +2979,8 @@ class Viewport(QOpenGLWidget):
             self._draw_one_label(painter, i, b)
 
     def _draw_one_label(self, painter: QPainter, i: int, b):
+        if i in self._engulfed or i in self._shatter_hidden:
+            return   # 被吞噬/撕裂的天体不再标注
         pr = self.project(self._body_pos[i])
         if pr is None:
             return
@@ -2384,9 +3018,16 @@ class Viewport(QOpenGLWidget):
         if self.camera.fly_mode:
             lines.append("飞行模式: WASD 移动 | QE 上下 | 中键转向 | Shift+~ 退出")
         # 星历适用范围警告
-        year = self.clock.now_datetime().year
+        year = self.clock.now_ymd()[0]
         if year < EPHEMERIS_VALID_YEARS[0] or year > EPHEMERIS_VALID_YEARS[1]:
             lines.append("警告: 已超出 JPL 近似星历适用范围（1800-2050），误差随时间累积")
+        # 太阳演化状态
+        st = self._sun_state_cache
+        if self._evo_active and st is not None:
+            lines.append(
+                f"太阳: {st.phase}｜R={st.radius_solar:.4g} R☉ "
+                f"L={st.luminosity_solar:.4g} L☉ T={st.teff_k:.0f} K "
+                f"M={st.mass_solar:.3f} M☉")
         for line in lines:
             painter.setPen(QColor(224, 224, 224))
             painter.drawText(12, y, line)
@@ -2407,6 +3048,16 @@ class Viewport(QOpenGLWidget):
         painter.setPen(QColor(130, 130, 130))
         painter.drawText(12, h - 12,
                          "中键旋转 | Shift+中键平移 | 滚轮缩放 | 右键菜单 | F1 帮助")
+        # 演化事件横幅：最近一条 8 秒渐隐（吞噬/撕裂/阶段转换）
+        if self.evolution_events:
+            t0, _age, text = self.evolution_events[-1]
+            dt_ev = _time.perf_counter() - t0
+            if 0.0 <= dt_ev < 8.0:
+                alpha = 1.0 if dt_ev < 6.0 else (8.0 - dt_ev) / 2.0
+                painter.setFont(QFont("Microsoft YaHei UI", 12, QFont.Bold))
+                painter.setPen(QColor(255, 130, 100, int(230 * alpha)))
+                painter.drawText(QRectF(0, h * 0.16, w, 44),
+                                 Qt.AlignCenter | Qt.TextWordWrap, text)
 
     # ---------- 交互 ----------
     def mousePressEvent(self, ev):
@@ -2565,11 +3216,48 @@ class Viewport(QOpenGLWidget):
                 act_rel = QAction("解除锁定跟随", menu)
                 act_rel.triggered.connect(self._release_follow)
                 menu.addAction(act_rel)
+            # 潮汐撕裂演示（行星/卫星；τ ∝ (R/d)^6 的演示参数化）
+            if b.body_type in ("planet_solar", "dwarf", "etno", "moon",
+                               "satellite"):
+                act_sh = QAction(f"潮汐撕裂演示（{b.name}）", menu)
+                act_sh.triggered.connect(lambda: self.start_shatter_demo())
+                menu.addAction(act_sh)
         else:
             act = QAction("回到太阳系原点", menu)
             act.triggered.connect(self._go_home)
             menu.addAction(act)
+        menu.addSeparator()
+        act_roche = QAction(f"{'隐藏' if self.show_roche else '显示'}洛希极限圈"
+                            f"（{'选中天体' if self.selected_name else '请先选中天体'}）",
+                            menu)
+        act_roche.triggered.connect(self._toggle_roche)
+        menu.addAction(act_roche)
+        # 地球命运模式（红巨星阶段：逃逸 = 质量损失外移贴边掠过；
+        # 吞噬 = 潮汐拖拽压过外移，地球坠入光球，S&C 2008）
+        from core import sun_evolution as _se
+        fate_now = ("逃逸（贴边掠过）" if _se.EARTH_FATE == "escape"
+                    else "吞噬（坠入光球）")
+        fate_next = "吞噬" if _se.EARTH_FATE == "escape" else "逃逸"
+        act_fate = QAction(f"地球命运：{fate_now}（切换为{fate_next}）", menu)
+        act_fate.triggered.connect(self._toggle_earth_fate)
+        menu.addAction(act_fate)
         menu.exec_(ev.globalPos())
+
+    def _toggle_earth_fate(self):
+        from core import sun_evolution as _se
+        _se.EARTH_FATE = "engulf" if _se.EARTH_FATE == "escape" else "escape"
+        # 位置/轨道线立即按新模式重算（清缓存 + 强制重建）
+        self._orbit_scale_applied = -1.0
+        self._last_orbit_rebuild = 0.0
+        self._rebuild_orbits()
+        mode = "吞噬" if _se.EARTH_FATE == "escape" else "逃逸"
+        self._log_evolution_event(
+            f"地球命运切换 → {'逃逸（贴边掠过红巨星）' if mode == '逃逸' else '吞噬（潮汐拖拽坠入光球）'}")
+        self.update()
+
+    def _toggle_roche(self):
+        self.show_roche = not self.show_roche
+        self.update()
 
     def _go_home(self):
         self.focus_body = None

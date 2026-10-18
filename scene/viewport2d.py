@@ -476,8 +476,9 @@ class Viewport2D(QWidget):
 
     def _draw_hud(self, p):
         p.setFont(QFont("Microsoft YaHei UI", style.fs(9)))
-        dt = self.clock.now_datetime()
-        self._draw_text(p, 10, 18, f"二维平面视图（俯视黄道面）　{dt:%Y-%m-%d %H:%M} UTC",
+        dt = self.clock.now_ymd()
+        y, m, d, h, mi = dt[0], dt[1], dt[2], dt[3], dt[4]
+        self._draw_text(p, 10, 18, f"二维平面视图（俯视黄道面）　{y:04d}-{m:02d}-{d:02d} {h:02d}:{mi:02d} UTC",
                         QColor(TEXT_DIM))
         self._draw_text(p, 10, 34,
                         f"每 AU ≈ {self._scale:.1f} px　滚轮缩放 · 拖拽平移 · 单击选中 · 双击聚焦",

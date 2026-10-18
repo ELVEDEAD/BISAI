@@ -306,7 +306,10 @@ class GravityWindow(QMainWindow):
                 "<hr><p style='color:%s;line-height:1.6'>"
                 "网格按 <b>M/r</b> 引力势下陷：<br>"
                 "质量越大、距离越近，凹陷越深。黑洞的凹陷极深。</p>"
-                % (TEXT_DIM, TEXT_DIM))
+                "<hr><p style='color:%s;line-height:1.6;font-size:11px'>"
+                "注：网格凹陷为 M/r 引力势示意，不代表真实时空度规"
+                "（非广义相对论模拟）。</p>"
+                % (TEXT_DIM, TEXT_DIM, TEXT_DIM))
             return
 
         kind = BODY_TYPE_LABELS.get(b.body_type, b.body_type)
