@@ -7,9 +7,12 @@
 ; v1.4.0：太阳系物理演化与天文事件大功能（亿年时间轴/吞噬/洛希极限/
 ;        教学场景）+ 系外宿主恒星演化吞噬 + 地表视角城市切换崩溃修复
 ; v1.4.1：修复日历弹出报错（QCalendarWidget 无 aboutToHide 信号）
+; v1.5.0：Blender 风格 XYZ 视角导航轴（View Gizmo）：视口右上角导航球，
+;        点击轴向端点平滑切视角（300~500ms 缓动/可打断/极点保持方位）；
+;        Numpad 1/3/7 与 Gizmo 统一动画；设置新增导航轴显隐开关（五语言）
 
 #define MyAppName "Astrarium"
-#define MyAppVersion "1.4.1"
+#define MyAppVersion "1.5.0"
 #define MyAppPublisher "已知行星可视化项目组"
 #define MyAppExeName "Astrarium.exe"
 #define MyAppDirName "Astrarium"
