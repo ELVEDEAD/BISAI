@@ -47,6 +47,8 @@ class OrbitCamera:
         self._anim_focus_to = np.zeros(3)
         self._anim_dist_from = 1.0
         self._anim_dist_to = 1.0
+        # 轴向视角动画（View Gizmo 点击 / Numpad 视图键共用）
+        self._v_anim = None
         # 飞行模式
         self.fly_mode = False
         self.fly_pos = np.zeros(3)
@@ -90,6 +92,7 @@ class OrbitCamera:
         self._d_el = max(-MAX_ORBIT_VEL,
                          min(MAX_ORBIT_VEL, self._d_el + dy * ORBIT_SENS_BASE * s))
         self._anim_active = False
+        self._v_anim = None          # 用户拖拽打断视角动画
 
     def pan(self, dx: float, dy: float):
         """Shift+中键平移（随视距缩放）"""
@@ -115,10 +118,60 @@ class OrbitCamera:
         return np.column_stack([right, up, fwd])
 
     def set_view(self, azimuth_deg: float, elevation_deg: float):
-        """正交视图切换（Numpad 1/3/7 等）"""
+        """正交视图切换（瞬跳：书签 restore / 程序化调用用；交互切视角走 view_to）"""
         self.azimuth = math.radians(azimuth_deg)
         self.elevation = math.radians(max(-89.9, min(89.9, elevation_deg)))
         self._d_az = self._d_el = 0.0
+
+    # ---------- 轴向视角动画（View Gizmo / Numpad 1·3·7 共用） ----------
+    def view_to(self, azimuth_deg=None, elevation_deg=None, duration: float = 0.4):
+        """平滑切到轴向视角（约 300~500ms 缓动，可打断）。
+
+        - azimuth_deg / elevation_deg 为 None 表示该角保持当前值：
+          +Z 俯视 / -Z 仰视时水平朝向无唯一解，保持当前 az 动画最平滑
+          （不会先水平甩一大圈再抬头）
+        - 方位角沿最短角路径插值（±180° 内）
+        - focus / distance 不动：观察目标（含锁定跟随天体）与缩放保持不变
+        - 飞行模式下转 fly_yaw / fly_pitch（等效视角），同一动画字段推进
+        - 可打断：动画中再次 view_to 直接改道新目标；用户 orbit 拖拽亦打断
+        """
+        if self.fly_mode:
+            az0 = math.degrees(self.fly_yaw)
+            el0 = math.degrees(self.fly_pitch)
+        else:
+            az0 = math.degrees(self.azimuth)
+            el0 = math.degrees(self.elevation)
+        az1 = az0 if azimuth_deg is None else float(azimuth_deg)
+        el1 = el0 if elevation_deg is None else float(elevation_deg)
+        el1 = max(-89.9, min(89.9, el1))
+        d_az = (az1 - az0 + 180.0) % 360.0 - 180.0   # 最短角路径
+        self._v_anim = dict(az0=az0, d_az=d_az, el0=el0, d_el=el1 - el0,
+                            t=0.0, dur=max(0.05, float(duration)))
+        self._d_az = self._d_el = 0.0
+
+    @property
+    def view_anim_active(self) -> bool:
+        return self._v_anim is not None
+
+    def _step_view_anim(self, dt: float):
+        va = self._v_anim
+        if va is None:
+            return
+        va["t"] += dt / va["dur"]
+        t = min(1.0, va["t"])
+        e = _ease_in_out(t)
+        az = math.radians(va["az0"] + va["d_az"] * e)
+        el = math.radians(va["el0"] + va["d_el"] * e)
+        if self.fly_mode:
+            self.fly_yaw = az
+            self.fly_pitch = max(-1.55, min(1.55, el))
+        else:
+            self.azimuth = az
+            # el 不钳 ±1.55：那是 orbit 阻尼交互的防翻转钳；轴向视角
+            # 目标 ±89.9° 已在 view_to 入口校验，动画直接到达
+            self.elevation = el
+        if t >= 1.0:
+            self._v_anim = None
 
     def set_sensitivity(self, value: float):
         """统一设置视角灵敏度（0.05 ~ 8.0；1.0 为标准，数值越大转得越快）"""
@@ -200,6 +253,7 @@ class OrbitCamera:
     # ---------- 每帧更新 ----------
     def update(self, dt: float):
         """推进阻尼/动画（dt 秒）"""
+        self._step_view_anim(dt)
         if self.fly_mode:
             self.fly_pos = self.fly_pos + self._fly_vel * dt
             self._fly_vel *= math.exp(-DAMP * dt)

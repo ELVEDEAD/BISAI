@@ -54,3 +54,24 @@ def test_main_window_constructs(qapp):
     assert hasattr(win, "_show_evolution_log")
     assert hasattr(win.viewport, "evolution_events")
     win.close()
+
+
+def test_settings_dialog_constructs(qapp):
+    """SettingsDialog 构造 + View Gizmo 开关联动（离屏防回归）"""
+    from data.loader import load_solar_system
+    from main import build_star_list
+    from ui.main_window import MainWindow
+    from ui.settings_dialog import SettingsDialog
+
+    bodies = load_solar_system()
+    win = MainWindow(bodies, build_star_list())
+    dlg = SettingsDialog(parent=win, viewport=win.viewport)
+    assert hasattr(dlg, "chk_gizmo")
+    shown = not win.viewport._view_gizmo.isHidden()
+    assert dlg.chk_gizmo.isChecked() is shown
+    dlg.chk_gizmo.setChecked(False)         # 开关 → 即时隐藏
+    assert win.viewport._view_gizmo.isHidden()
+    dlg.chk_gizmo.setChecked(True)          # 恢复（不污染用户设置则最好）
+    assert not win.viewport._view_gizmo.isHidden()
+    dlg.close()
+    win.close()

@@ -42,6 +42,7 @@ DEFAULTS = {
     "planet_count": 400000,
     "gpu_pref": "auto",
     "display_mode": "maximized",
+    "show_view_gizmo": True,
     "llm_provider": "deepseek",
     "llm_base_url": "https://api.deepseek.com/v1",
     "llm_model": "deepseek-chat",
@@ -210,6 +211,18 @@ def get_display_mode() -> str:
 def set_display_mode(mode: str):
     d = load()
     d["display_mode"] = mode
+    save(d)
+
+
+# ---------------------------------------------------------------- 视角导航轴
+def get_show_view_gizmo() -> bool:
+    """3D 视口右上角 Blender 风格视角导航轴（View Gizmo）显隐，默认开启。"""
+    return bool(load().get("show_view_gizmo", True))
+
+
+def set_show_view_gizmo(shown: bool):
+    d = load()
+    d["show_view_gizmo"] = bool(shown)
     save(d)
 
 

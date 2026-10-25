@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import QOpenGLWidget, QMenu, QAction
 
 from scene.camera import OrbitCamera, FOV_DEG, MIN_DIST
 from scene import glfuncs
+from scene.view_gizmo import ViewGizmo
 from core.time_system import SimulationClock
 from core.constants import (AU_KM, J2000_JD, format_distance, scale_tier_name,
                             GRADE_DESCRIPTION, format_light_time)
@@ -41,6 +42,11 @@ from scene.textures import texture_kind
 from data.solar_system import EPHEMERIS_VALID_YEARS, RINGS, POLES, saturn_ring_alpha
 
 STAR_SPHERE_RADIUS = 5e8   # 背景亮星天球半径（AU，深度关闭，仅装饰定位）
+
+# 轴向视角（View Gizmo / Numpad 1·3·7）是否切正交投影（需求 3.2）：
+# 默认 False —— 切轴向视角保持软件当前的透视投影，不像 Blender 自动切正交。
+# 预留开关供以后启用正交轴向视角（需在 _compute_matrices 增加正交投影路径）。
+AXIS_VIEW_ORTHO = False
 
 # ---------- 远距标记点尺寸（点精灵直径，像素）----------
 # 按真实半径做幂律缩放：指数 0=等大，1=严格等比。
@@ -693,6 +699,17 @@ class Viewport(QOpenGLWidget):
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)
 
+        # Blender 风格视角导航轴（View Gizmo）：右上角叠加层，
+        # 显隐由设置「显示 3D 视角导航轴」控制（默认开；隐藏后快捷键仍可用）
+        try:
+            from core import app_settings
+            _gizmo_on = app_settings.get_show_view_gizmo()
+        except Exception:
+            _gizmo_on = True
+        self._view_gizmo = ViewGizmo(self)
+        self._view_gizmo.axisClicked.connect(self._gizmo_view)
+        self._view_gizmo.set_shown(_gizmo_on)
+
     def showEvent(self, ev):
         # 窗口隐藏时停表（切换 3D/2D 模式时避免不可见视口空转）
         self._last_tick = _time.perf_counter()
@@ -1290,7 +1307,8 @@ class Viewport(QOpenGLWidget):
             return None, 0.0
 
     def resizeGL(self, w, h):
-        pass
+        # Gizmo 始终贴视口右上角（跟随视口而非主窗口，需求 2.1）
+        self._view_gizmo.reposition()
 
     # ---------- 每帧 ----------
     def _tick(self):
@@ -1320,6 +1338,8 @@ class Viewport(QOpenGLWidget):
             if "e" in self._keys:
                 self.camera.fly_move(1, "z", mult)
         self.camera.update(dt)
+        # Gizmo 姿态同步：姿态变化才局部重绘自身（不触发主场景重绘）
+        self._view_gizmo.sync_pose(self.camera)
         self._apply_follow()
         self._record_trail()
         self._fps_frames += 1
@@ -1351,6 +1371,7 @@ class Viewport(QOpenGLWidget):
             busy = (now < self._active_until
                     or self.camera.fly_mode
                     or self.camera._anim_active
+                    or self.camera.view_anim_active
                     or self._dragging
                     or self.follow_body is not None)
             fps = self.render_fps_active if busy else self.render_fps_idle
@@ -1434,6 +1455,9 @@ class Viewport(QOpenGLWidget):
         f.glBlendFunc(f.GL_SRC_ALPHA, f.GL_ONE_MINUS_SRC_ALPHA)
 
         self._compute_matrices()
+        # Gizmo 姿态同步（双保险：_tick 已同步一次；外部触发的 repaint
+        # ——如 resize/叠加刷新——也能拿到最新姿态，allclose 内部去重）
+        self._view_gizmo.sync_pose(self.camera)
         self._update_body_positions(f)
 
         if self.show_nebula:
@@ -3060,6 +3084,35 @@ class Viewport(QOpenGLWidget):
                                  Qt.AlignCenter | Qt.TextWordWrap, text)
 
     # ---------- 交互 ----------
+    # ---------- 轴向视角（View Gizmo / Numpad 视图键共用） ----------
+    # 软件世界系约定（J2000 黄道系，Z=黄道北极；az 自 +X 起量，el=0 黄道面）：
+    #   +X → az=0（YZ 平面侧视）   -X → az=180
+    #   +Y → az=90（XZ 平面侧视）  -Y → az=-90
+    #   +Z → el=+89.9 俯视（az=None 保持当前值：俯视水平朝向无唯一解，
+    #                    保持 az 动画最平滑、不水平甩动）
+    #   -Z → el=-89.9 仰视（az=None 同上）
+    # 与 Numpad 快捷键为同一套映射：1→+X、3→+Y、7→+Z（Ctrl+ 反向）。
+    # 切换时保持：focus（观察目标/锁定跟随天体不变）、distance（缩放不变）、
+    # 透视投影（AXIS_VIEW_ORTHO 预留「轴向视角用正交投影」开关，默认关闭）。
+    _GIZMO_VIEWS = {
+        "+x": (0.0, 0.0), "-x": (180.0, 0.0),
+        "+y": (90.0, 0.0), "-y": (-90.0, 0.0),
+        "+z": (None, 89.9), "-z": (None, -89.9),
+    }
+
+    def _gizmo_view(self, key: str):
+        """Gizmo 端点点击 / 快捷键 → 平滑切轴向视角（300~500ms 缓动）"""
+        if key not in self._GIZMO_VIEWS:
+            return
+        az, el = self._GIZMO_VIEWS[key]
+        self.camera.view_to(az, el)
+        self._mark_active(1.0)
+        self.update()
+
+    def set_gizmo_visible(self, shown: bool):
+        """设置面板「显示 3D 视角导航轴」开关 → Gizmo 显隐（快捷键不受影响）"""
+        self._view_gizmo.set_shown(shown)
+
     def mousePressEvent(self, ev):
         self._mark_active()
         self._last_pos = ev.pos()
@@ -3149,18 +3202,21 @@ class Viewport(QOpenGLWidget):
         if text == "f" or k == Qt.Key_F:
             self._toggle_lock()
             return
-        # Blender 数字键盘视图
+        # Blender 数字键盘视图（与 View Gizmo 同一套映射：1→+X、3→+Y、7→+Z，
+        # Ctrl+ 反向；走 view_to 平滑动画，与 Gizmo 点击一致。4/6/8/2 保持连续旋转）
         key_map = {
             Qt.Key_1: None, Qt.Key_3: None, Qt.Key_7: None,
             Qt.Key_4: None, Qt.Key_6: None, Qt.Key_8: None, Qt.Key_2: None,
         }
         if mods & Qt.KeypadModifier or k in key_map:
             if k == Qt.Key_1:
-                self.camera.set_view(180 if (mods & Qt.ControlModifier) else 0, 0)
+                self.camera.view_to(180 if (mods & Qt.ControlModifier) else 0, 0)
             elif k == Qt.Key_3:
-                self.camera.set_view(90 if not (mods & Qt.ControlModifier) else -90, 0)
+                self.camera.view_to(90 if not (mods & Qt.ControlModifier) else -90, 0)
             elif k == Qt.Key_7:
-                self.camera.set_view(0, 90 if not (mods & Qt.ControlModifier) else -90)
+                # 俯视/仰视 az 保持当前值（原 set_view 固定 az=0，现与 Gizmo 统一：
+                # 保持 az 动画最平滑；画面仍是 XY 平面俯视，仅屏幕朝向随当前方位）
+                self.camera.view_to(None, 90 if not (mods & Qt.ControlModifier) else -90)
             elif k == Qt.Key_4:
                 self.camera._d_az = 1.6
             elif k == Qt.Key_6:

@@ -301,6 +301,16 @@ class SettingsDialog(QDialog):
         disp_grid.addWidget(self.chk_vsync, row, 1, alignment=Qt.AlignRight)
         row += 1
 
+        # 3D 视角导航轴（View Gizmo）：隐藏后 Numpad 1/3/7 快捷键仍可用
+        self._label(disp_grid, row, "3D 视角导航轴",
+                    "视口右上角 Blender 风格 XYZ 导航球；关闭后快捷键 1/3/7 仍可用")
+        self.chk_gizmo = QCheckBox(tr("显示导航轴"))
+        self.chk_gizmo.setChecked(app_settings.get_show_view_gizmo())
+        self.chk_gizmo.toggled.connect(self._on_gizmo)
+        self._retrans.append(lambda: self.chk_gizmo.setText(tr("显示导航轴")))
+        disp_grid.addWidget(self.chk_gizmo, row, 1, alignment=Qt.AlignRight)
+        row += 1
+
         self._label(disp_grid, row, "DPI 缩放", "跟随系统 DPI 或强制 100%")
         self.cmb_dpi = QComboBox()
         self._populate_dpi()
@@ -855,6 +865,11 @@ class SettingsDialog(QDialog):
         self.sld_planets.setEnabled(not checked)
         if self.viewport and hasattr(self.viewport, 'set_planet_auto'):
             self.viewport.set_planet_auto(checked)
+
+    def _on_gizmo(self, checked):
+        app_settings.set_show_view_gizmo(checked)
+        if self.viewport and hasattr(self.viewport, 'set_gizmo_visible'):
+            self.viewport.set_gizmo_visible(checked)
 
     def _on_planet_slider(self, val):
         self.lbl_planets.setText(f"{val:,}")
