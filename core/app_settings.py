@@ -19,13 +19,18 @@ app_settings.py —— 用户偏好持久化（语言 / 主题 / 字体 / 渲染
     llm_provider      大模型服务商键
     llm_base_url      大模型 API 地址（OpenAI 兼容）
     llm_model         模型名
-    llm_api_key       API Key
+
+API Key 不写入本 JSON：改由 core.env_store 读写程序目录下的 .env 文件，
+避免密钥随设置文件被提交到仓库。
 """
 import json
 import os
 import sys
 
+from core import env_store
+
 _FILE_NAME = "已知行星可视化_设置.json"
+ENV_API_KEY = "LLM_API_KEY"
 
 # 默认值：值类型决定 load() 的类型校验方式
 DEFAULTS = {
@@ -40,13 +45,12 @@ DEFAULTS = {
     "llm_provider": "deepseek",
     "llm_base_url": "https://api.deepseek.com/v1",
     "llm_model": "deepseek-chat",
-    "llm_api_key": "",
 }
 
 # 字符串型键（其余按默认值类型做数值 / 布尔校验）
 _STR_KEYS = {"language", "theme", "perf_tier", "planet_count_mode",
              "gpu_pref", "display_mode", "llm_provider", "llm_base_url",
-             "llm_model", "llm_api_key"}
+             "llm_model"}
 
 
 def _config_path() -> str:
@@ -88,9 +92,11 @@ def load() -> dict:
 
 
 def save(data: dict):
+    # 双保险：即使调用方传入 llm_api_key，也不落盘到设置 JSON
+    safe = {k: v for k, v in data.items() if k != "llm_api_key"}
     try:
         with open(_config_path(), "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(safe, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
@@ -208,13 +214,34 @@ def set_display_mode(mode: str):
 
 
 # ---------------------------------------------------------------- 大模型
+def _legacy_api_key() -> str:
+    """读取旧版本遗留在设置 JSON 里的 API Key（仅用于迁移与兜底）。"""
+    try:
+        with open(_config_path(), "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        value = saved.get("llm_api_key") if isinstance(saved, dict) else None
+        return value if isinstance(value, str) else ""
+    except Exception:
+        return ""
+
+
+def migrate_api_key():
+    """把旧设置 JSON 里的 API Key 搬到 .env，并从 JSON 中移除。"""
+    legacy = _legacy_api_key()
+    if not legacy:
+        return
+    if not env_store.get(ENV_API_KEY):
+        env_store.set_value(ENV_API_KEY, legacy)
+    save(load())
+
+
 def get_llm_config() -> dict:
     d = load()
     return {
         "provider": d.get("llm_provider", "deepseek"),
         "base_url": d.get("llm_base_url", ""),
         "model": d.get("llm_model", ""),
-        "api_key": d.get("llm_api_key", ""),
+        "api_key": env_store.get(ENV_API_KEY) or _legacy_api_key(),
     }
 
 
@@ -227,13 +254,14 @@ def set_llm_config(provider: str = None, base_url: str = None,
         d["llm_base_url"] = base_url
     if model is not None:
         d["llm_model"] = model
-    if api_key is not None:
-        d["llm_api_key"] = api_key
     save(d)
+    if api_key is not None:
+        env_store.set_value(ENV_API_KEY, api_key)
 
 
 def apply_saved():
     """启动时应用已保存的语言、主题与字体缩放。"""
+    migrate_api_key()
     d = load()
     from core import i18n
     i18n.set_language(d["language"])

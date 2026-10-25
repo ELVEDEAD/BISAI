@@ -436,7 +436,7 @@ class SettingsDialog(QDialog):
         llm_grid.addWidget(self.edt_llm_model, lrow, 1)
         lrow += 1
 
-        self._label(llm_grid, lrow, "API Key", "仅保存在本机设置文件，不会上传")
+        self._label(llm_grid, lrow, "API Key", "仅保存在本机 .env 文件（已在 .gitignore 中排除），不会上传")
         self.edt_llm_key = QLineEdit(_cfg["api_key"])
         self.edt_llm_key.setEchoMode(QLineEdit.Password)
         self.edt_llm_key.setPlaceholderText("sk-…")

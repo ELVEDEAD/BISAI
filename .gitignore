@@ -6,8 +6,19 @@ dist/
 _fs_report.txt
 _imp_check.txt
 _smoke_out.txt
+_smoke_err.txt
+_build_out.txt
+_build_err.txt
+_iss.log
 _toc.txt
+Astrarium_错误日志.txt
 exoplanets_cache.pkl
 gpu_info_cache.json
 码道记忆备份/
 作品说明文档/
+
+# 本地配置文件（含 API Key，禁止提交）
+已知行星可视化_设置.json
+*_设置.json
+*.key
+.env

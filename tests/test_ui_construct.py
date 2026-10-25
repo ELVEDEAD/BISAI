@@ -31,6 +31,18 @@ def test_timeline_constructs(qapp):
     assert tl.cmb_evolution.count() >= 6
 
 
+def test_timeline_calendar_toggle(qapp):
+    """日历弹出/关闭不抛异常（回归：QCalendarWidget 无 aboutToHide 信号 AttributeError）"""
+    from core.time_system import SimulationClock
+    from ui.timeline import Timeline
+
+    tl = Timeline(SimulationClock())
+    tl._toggle_calendar()          # 打开：不得抛 AttributeError
+    assert tl._calendar_popup is not None
+    tl._toggle_calendar()          # 再点按钮：关闭并清理
+    assert tl._calendar_popup is None
+
+
 def test_main_window_constructs(qapp):
     """MainWindow 完整构造（含全部面板 + 工具栏 + 演化日志入口）"""
     from data.loader import load_solar_system

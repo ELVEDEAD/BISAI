@@ -6,9 +6,10 @@
 ; v1.3.0：软件显示名与 exe 更名为 Astrarium；显式保留安装目录选择页
 ; v1.4.0：太阳系物理演化与天文事件大功能（亿年时间轴/吞噬/洛希极限/
 ;        教学场景）+ 系外宿主恒星演化吞噬 + 地表视角城市切换崩溃修复
+; v1.4.1：修复日历弹出报错（QCalendarWidget 无 aboutToHide 信号）
 
 #define MyAppName "Astrarium"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.4.1"
 #define MyAppPublisher "已知行星可视化项目组"
 #define MyAppExeName "Astrarium.exe"
 #define MyAppDirName "Astrarium"

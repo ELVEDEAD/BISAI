@@ -10,7 +10,7 @@ timeline.py —— 底部时间轴控件（模块 I）
 """
 from datetime import datetime, date as _date
 
-from PyQt5.QtCore import Qt, pyqtSignal, QDate
+from PyQt5.QtCore import Qt, pyqtSignal, QDate, QEvent
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
                              QSlider, QLabel, QLineEdit, QFrame,
                              QCalendarWidget, QSpinBox, QToolButton,
@@ -238,9 +238,14 @@ class Timeline(QWidget):
             self.btn_calendar.rect().bottomLeft())
         cal.move(pos)
         cal.clicked.connect(lambda qd: self._on_calendar_pick(qd))
-        cal.aboutToHide.connect(self._close_calendar)
+        cal.installEventFilter(self)
         self._calendar_popup = cal
         cal.show()
+
+    def eventFilter(self, obj, ev):
+        if obj is self._calendar_popup and ev.type() == QEvent.Hide:
+            self._close_calendar()
+        return super().eventFilter(obj, ev)
 
     def _on_calendar_pick(self, qd):
         dt = datetime(qd.year(), qd.month(), qd.day())
