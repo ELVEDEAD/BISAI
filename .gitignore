@@ -17,6 +17,19 @@ gpu_info_cache.json
 码道记忆备份/
 作品说明文档/
 
+# IDE / 工具本地配置
+.arts/
+
+# 本地开发过程文档与临时产物（不入公开仓库）
+开发进度.md
+bug_fix_prompt.md
+package_submission.py
+physics_audit_v2.py
+physics_audit_v3.py
+启动行星可视化.bat
+已知行星可视化.lnk
+已知行星可视化.spec
+
 # 本地配置文件（含 API Key，禁止提交）
 已知行星可视化_设置.json
 *_设置.json
